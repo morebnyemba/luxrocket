@@ -14,6 +14,7 @@ Legend — **Approval**: *Required* = blocks the gate shown; *Default OK* = we p
 | OQ-14 | Max multiplier M and max win per bet W (per currency) | Exposure, rules text | M = 10 000×; W = USD 10 000 equiv., set per currency | Required — Gate B→C |
 | OQ-17 | Auto cash-out tie rule (target = crash) | Rules text; RTP exactness | Tie goes to player | Required — Gate B→C |
 | OQ-18 | Manual cash-out pricing precision (0.01× vs 0.0001×) | Manual RTP drag up to ~1 % | Price at x10000 internally, display x100 | Required — Gate B→C |
+| OQ-36 | Global rounds require one certification accepted everywhere. Which certification standard/lab satisfies all intended markets, and which markets are excluded if none does? | GLI-style certification from a lab recognised by the first market; check acceptance per market before onboarding | Required — before Phase H; informs OQ-01 |
 | OQ-07 | Is "LUX ROCKET" trademark-cleared in target markets? | Branding rework risk | Assume clear; check before public launch | Required — before Phase G |
 
 ## 2. Commercial & operator
@@ -37,7 +38,7 @@ Legend — **Approval**: *Required* = blocks the gate shown; *Default OK* = we p
 | OQ-24 | Show other players' cash-outs with amounts? | Multipliers + masked aliases only | Default OK |
 | OQ-32 | Round timing defaults (7 s betting, 1 s grace, 2 s cooldown, λ) | As in doc 07 §1 | Default OK |
 | OQ-35 | Launch locales | en first; then pt (Mozambique), sn/nd (Zimbabwe) subject to demand | Default OK |
-| OQ-09 | One global stream vs per-jurisdiction streams at launch | One stream per environment; split only when required | Default OK |
+| OQ-09 | One global stream vs per-jurisdiction streams | **Resolved 2026-10-10: rounds are global** (ADR-020) | Closed |
 
 ## 4. Security, infra & compliance
 

@@ -105,7 +105,7 @@ E[return] = (k/100) · P(crash_x100 ≥ k) = (k/100) · 100(1−e)/k = 1 − e
 
 Milestones are spaced in log-multiplier, so they arrive at roughly regular *time* intervals. The visual design must not dramatise crashes "just before" a planet (no near-miss messaging, doc 15 §6).
 
-## 6. Provably-fair protocol (per round stream)
+## 6. Provably-fair protocol (global round sequence)
 
 ### 6.1 Chain ceremony (offline, four-eyes, audited)
 1. Generate `s_0` = 32 bytes from an OS CSPRNG on an isolated host.

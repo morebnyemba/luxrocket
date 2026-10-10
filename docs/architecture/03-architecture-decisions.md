@@ -26,7 +26,8 @@ All ADRs below are **Proposed** until doc 22 is approved. Later implementation w
 | ADR-017 | Three separate frontends; game as static export on its own origin | Proposed | Medium |
 | ADR-018 | Defer PixiJS; DOM HUD + Three.js effects | Proposed | Low |
 | ADR-019 | Tenant isolation: scoped repositories + Postgres RLS | Proposed | High |
-| ADR-020 | Round streams as the unit of shared rounds | Proposed | High |
+| ADR-020 | One global round sequence per environment | **Accepted** (product owner, 2026-10-10) | High |
+| ADR-025 | Player-sharded cash-out arbitration under one global lease | Proposed | High |
 | ADR-021 | Docker on Linux VMs, no Kubernetes at launch; Johannesburg region | Proposed | Medium |
 | ADR-022 | Short-lived signed game-session tokens + single-use WS tickets | Proposed | High |
 | ADR-023 | No FX in platform; per-currency limits | Proposed | Low |
@@ -77,7 +78,7 @@ All ADRs below are **Proposed** until doc 22 is approved. Later implementation w
 **Consequences.** Simple, auditable rule that mirrors the common "malfunction voids all pays and plays" clause — but here only for *uncashed* bets. Needs commercial & regulatory approval (OQ-10). Voids must be rare: monitored and alerted.
 
 ## ADR-006 — Outcome generation
-**Decision.** Per stream, an offline ceremony generates a SHA-256 hash chain of length N; the terminal hash is published and signed. After publication, a public salt is fixed from a future drand round (number announced at commitment). Round *k* uses chain seed `s_{N-k}`; crash point from `HMAC-SHA256(s, salt)` via the integer formula in doc 07. Verification: `SHA256(s_round) = s_previous_round` and the formula.
+**Decision.** For the global round sequence, an offline ceremony generates a SHA-256 hash chain of length N; the terminal hash is published and signed. After publication, a public salt is fixed from a future drand round (number announced at commitment). Round *k* uses chain seed `s_{N-k}`; crash point from `HMAC-SHA256(s, salt)` via the integer formula in doc 07. Verification: `SHA256(s_round) = s_previous_round` and the formula.
 **Alternatives.** Per-round server seed + player client seeds (rejected: shared multiplayer round cannot incorporate each player's seed fairly); CSPRNG per round with commit-reveal only (acceptable, but the chain additionally proves the house cannot regenerate outcomes mid-chain); certified hardware/RNG service (may be *required* by a regulator — OQ-12; the formula can accept any certified 52-bit uniform source instead of the HMAC).
 **Consequences.** Outcomes for the whole chain are known to whoever holds the chain seed → seed secrecy is a top security control (doc 15). Must be independently reviewed before production.
 
@@ -131,9 +132,18 @@ All ADRs below are **Proposed** until doc 22 is approved. Later implementation w
 ## ADR-019 — Tenant isolation
 **Decision.** (1) Every tenant-owned table has `operator_id NOT NULL`. (2) Django access via repository/service functions requiring an explicit `TenantContext`; unscoped managers forbidden by lint rule in operator-facing code. (3) Operator-portal API uses DB role `portal_rw` with Postgres RLS policies `operator_id = current_setting('app.operator_id')::uuid`, set per request with `SET LOCAL`. (4) Cross-tenant tests for every endpoint. Platform admin uses a separate role without RLS but with full audit.
 
-## ADR-020 — Round streams
-**Decision.** A `RoundStream` is a continuously running sequence of rounds bound to a `GameVersion` + `Ruleset` + seed chain. Operators are assigned to one stream per environment (default `global-main`). Jurisdictions requiring separately certified configurations get separate streams.
-**Consequences.** "All players see the same flight" holds per stream. Liquidity/social proof is maximised with one stream; isolation available when law requires.
+## ADR-020 — One global round sequence
+**Status.** Accepted by the product owner (2026-10-10). Supersedes the earlier "round streams per jurisdiction" proposal.
+**Decision.** Each environment runs exactly one round sequence (`stream_id = global`; sandbox is a separate environment with its own). Every operator's players, in every jurisdiction and currency, play the same rounds. The `stream_id` column remains in the schema as the sequence identifier, but production configuration permits exactly one active stream and the admin UI has no "create stream" action.
+**What varies per operator (allowed):** currency, stake limits, max win per bet (implemented as a per-bet effective auto cash-out target — doc 07 §4, so the round is unaffected), round exposure limit, auto cash-out availability, locale, RG settings, displayed features.
+**What can never vary (one value for the whole world):** ruleset (house edge, curve, max multiplier, betting window), RNG/seed chain, crash point, round timing.
+**Consequences.**
+1. *Certification is global*: the single ruleset and RNG must be acceptable to every jurisdiction we serve; changing them is a coordinated, all-markets release. A market whose regulator demands different RTP, a local RNG, or in-country game servers **cannot be served** by this design — it is excluded, not given its own rounds (OQ-36).
+2. *One hosting region serves everyone*: players far from Johannesburg get higher latency; this affects only display smoothness and cash-out reaction time, never correctness (server stamps). Latency per market is an onboarding check.
+3. *Throughput ceiling*: all bets and cash-outs worldwide meet one coordinator — mitigated by ADR-025.
+4. *Blast radius*: a coordinator failover voids the round for every operator at once; void rate becomes a platform-wide SLO.
+5. *Liquidity & social proof* are maximised — the reason for the decision.
+**Alternatives rejected.** Per-jurisdiction streams (product owner rejected: fragments the shared experience). Per-operator streams (same).
 
 ## ADR-021 — Hosting
 **Decision.** Docker containers on Linux VMs (Compose per host + a simple deploy tool, e.g. Kamal or Ansible), reverse proxy, managed Postgres if available. Region: Johannesburg (≈ 20–40 ms RTT from Harare/Lusaka/Gaborone typical, to be measured). No Kubernetes, no service mesh.
@@ -149,6 +159,12 @@ All ADRs below are **Proposed** until doc 22 is approved. Later implementation w
 ## ADR-024 — Debit is not inclusion
 **Decision.** A successful debit makes a bet *eligible*; the coordinator's journaled `BET_ADMITTED` makes it *part of the round*. A debited bet that is excluded (late, round voided, coordinator lost) is refunded via rollback.
 **Consequences.** Bet lifecycle has a `DEBITED` (pending admission) state. Reconciler refunds any debited bet without an admission fact once its round is terminal.
+
+## ADR-025 — Player-sharded cash-out arbitration under one global lease
+**Context.** With global rounds, an auto cash-out cluster at a popular target (e.g. 2.00×) or a burst of manual cash-outs from all markets lands on one `:gen_statem`. Correctness only needs serialisation *per bet* plus a single crash instant; it does not need one process for all players.
+**Decision.** Stage 1: single coordinator (simplest, sufficient for load-test stage S1). Stage 2, triggered by measured mailbox/latency thresholds (doc 16 §7): the coordinator remains the only authority for round state and timing, and spawns `BetShard` processes (one per rt node, players hashed to shards). At `ROCKET_LAUNCHED` each shard receives `crash_at`/`crash_x100` in memory; each shard independently decides manual and auto cash-outs for its players with the same rule (`received_at < crash_at`) and journals through its own fenced writer using the **global** lease's fencing token and a per-shard sequence. The coordinator journals `ROUND_CRASHED` only after every shard has flushed and acknowledged finalisation.
+**Trade-off.** The crash point exists in N processes instead of one during flight — still only inside the trusted rt cluster, never persisted or logged; the insider surface grows slightly. A shard losing contact with the coordinator halts (same as coordinator loss → void).
+**Alternatives.** Bigger single process (vertical only); moving cash-out decisions to Postgres row locks (contention on the hottest path).
 
 ## Unresolved decisions (tracked in doc 20)
 OQ-10 (void policy), OQ-12 (RNG certification path), OQ-13 (house edge), OQ-14 (max multiplier & max win), OQ-15 (wallet `settle` call), OQ-05 (managed Postgres availability), OQ-20 (cancel bet in betting window).

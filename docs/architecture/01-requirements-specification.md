@@ -38,7 +38,7 @@ The integration agreement MUST oblige the operator to:
 ### 3.2 Game and rounds
 | ID | Requirement |
 |----|-------------|
-| FR-010 | Rounds are shared by every player on a round stream; all observe the same launch time and crash point. |
+| FR-010 | Rounds are **global**: one round sequence per environment, shared by every player of every operator in every jurisdiction; all observe the same launch time and crash point. No per-operator or per-jurisdiction rounds. |
 | FR-011 | Each round's crash point MUST be determined and committed before betting opens and MUST NOT change. |
 | FR-012 | The client MUST NOT be able to determine the crash point before the crash. |
 | FR-013 | Exactly one coordinator controls a round at any time; coordinator failure MUST NOT produce a second outcome or reset a flight. |

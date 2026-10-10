@@ -69,7 +69,8 @@ Because the remote has no default branch, the first push establishes one. A pull
 | ADR-017 | Three **separately deployed** frontends (game, platform admin, operator portal) in one pnpm monorepo; the game is a static export on a CDN on its own origin. |
 | ADR-018 | **PixiJS deferred**: HUD in accessible DOM, effects in Three.js. Two WebGL contexts on low-end Android is not justified yet. |
 | ADR-019 | Tenant isolation by **scoped query layer + Postgres Row-Level Security** for operator-facing roles. |
-| ADR-020 | Shared rounds are scoped to **round streams**; operators are assigned to streams (jurisdiction/certification boundaries). |
+| ADR-020 | **One global round sequence** per environment: every player of every operator, in every jurisdiction, is in the same round. Jurisdictional differences are expressed per operator (limits, currencies, RG), never per round. |
+| ADR-025 | Cash-out arbitration can be **sharded by player** across rt nodes (all shards fenced by the one global lease) once a single coordinator process saturates. |
 
 ## 7. Where I pushed back on the brief
 
@@ -78,7 +79,7 @@ Because the remote has no default branch, the first push establishes one. A pull
 3. **PixiJS + Three.js** = two WebGL contexts and two render loops on devices we explicitly target. Deferred (ADR-018).
 4. **Phoenix Presence for "players online"** broadcasts CRDT diffs per join/leave; at thousands of players that dominates traffic. Replaced by periodic aggregated counts.
 5. **Single-use launch tokens in Redis** can be replayed after a Redis failover. Single-use enforcement lives in Postgres.
-6. **"Globally shared rounds" across all operators** collides with per-jurisdiction certification. Rounds are shared *within a round stream*; the default is one stream per environment, but the model allows jurisdiction-specific streams.
+6. **Global rounds are a product decision (confirmed).** Consequence: one ruleset and one RNG/certification must satisfy *every* market we enter (strictest common denominator), and a market that requires a locally hosted or separately certified game cannot join — it is excluded, not split off. The single global coordinator is also the throughput ceiling, hence ADR-025.
 7. **Operational load.** Postgres + Redis + RabbitMQ + Phoenix cluster + Django + workers + three frontends is a lot for a small team. Every component has a justified, narrow job (doc 02 §7); RabbitMQ is retained because it was mandated, but nothing correctness-critical depends on it being lossless (journal/outbox + reconciliation cover it).
 8. **Market risk**: online casino-style games are restricted or prohibited in some neighbouring markets (notably South Africa outside licensed categories). The product plan must not assume every "neighbouring market" is addressable (doc 15 §7.1, OQ-01).
 
