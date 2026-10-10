@@ -1,0 +1,44 @@
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Env & secrets (never commit)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Node
+node_modules/
+.pnpm-store/
+.next/
+out/
+dist/
+coverage/
+.turbo/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+htmlcov/
+staticfiles/
+
+# Elixir
+realtime/_build/
+realtime/deps/
+realtime/cover/
+realtime/doc/
+erl_crash.dump
+*.ez
+
+# Generated math artefacts (reproducible from contracts/math; hash is committed)
+contracts/math/**/curve-*.bin

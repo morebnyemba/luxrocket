@@ -1,0 +1,41 @@
+# Local development dependencies. Application processes run on the host (make dev-*) until
+# their Dockerfiles are wired in; see docs/architecture/17-deployment-and-observability.md.
+name: luxrocket
+
+services:
+  postgres:
+    image: postgres:16.10-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-luxrocket}
+      POSTGRES_USER: ${POSTGRES_USER:-luxrocket}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-luxrocket-dev-only}
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-luxrocket}"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports: ["127.0.0.1:6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: luxrocket
+      RABBITMQ_DEFAULT_PASS: luxrocket-dev-only
+      RABBITMQ_DEFAULT_VHOST: luxrocket
+    ports: ["127.0.0.1:5672:5672", "127.0.0.1:15672:15672"]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      retries: 10
+
+volumes:
+  pgdata:

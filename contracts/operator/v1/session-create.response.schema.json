@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.luxrocket.example/operator/v1/session-create.response.schema.json",
+  "title": "Create launch session response",
+  "type": "object",
+  "required": [
+    "session_id",
+    "launch_token",
+    "launch_token_expires_at",
+    "iframe_url"
+  ],
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "pattern": "^ses_"
+    },
+    "launch_token": {
+      "type": "string"
+    },
+    "launch_token_expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "iframe_url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "fragment_launch_url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "sdk_url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "sdk_integrity": {
+      "type": "string"
+    }
+  }
+}

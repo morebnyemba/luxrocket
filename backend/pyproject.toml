@@ -1,0 +1,52 @@
+[project]
+name = "luxrocket-backend"
+version = "0.1.0"
+description = "LUX ROCKET platform backend (Django)"
+requires-python = ">=3.12"
+dependencies = [
+    "django>=5.2,<5.3",
+    "djangorestframework>=3.16,<3.17",
+    "psycopg[binary]>=3.2,<4",
+    "uvicorn>=0.34,<1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-django>=4.9",
+    "hypothesis>=6.100",
+    "jsonschema>=4.23",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "django-stubs>=5.1",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings_test"
+python_files = ["test_*.py"]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = ["slow: long-running statistical tests (nightly)"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "DTZ", "RUF"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["mypy_django_plugin.main"]
+files = ["luxrocket/core"]
+
+[tool.django-stubs]
+django_settings_module = "config.settings_test"

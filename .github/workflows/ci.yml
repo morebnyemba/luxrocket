@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  POSTGRES_USER: luxrocket
+  POSTGRES_PASSWORD: luxrocket-dev-only
+  POSTGRES_HOST: localhost
+  POSTGRES_PORT: "5432"
+
+jobs:
+  backend:
+    name: Backend (Django) + math vectors
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: luxrocket
+          POSTGRES_PASSWORD: luxrocket-dev-only
+          POSTGRES_DB: luxrocket
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U luxrocket" --health-interval 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+      - run: uv run python scripts/gen_vectors.py --check
+      - run: uv run pytest
+
+  realtime:
+    name: Realtime (Phoenix)
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: luxrocket
+          POSTGRES_PASSWORD: luxrocket-dev-only
+          POSTGRES_DB: luxrocket
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U luxrocket" --health-interval 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: realtime
+    env:
+      MIX_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27.3.4.9"
+          elixir-version: "1.18.4"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            realtime/deps
+            realtime/_build
+          key: mix-${{ runner.os }}-${{ hashFiles('realtime/mix.lock') }}
+      - run: mix deps.get
+      - run: mix format --check-formatted
+      - run: mix compile --warnings-as-errors
+      - run: mix test
+
+  frontend:
+    name: Frontend & shared packages
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @luxrocket/protocol check-generated
+      - run: pnpm turbo run typecheck lint test build
+
+  images:
+    name: Container images build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - run: docker build -t luxrocket/backend:ci backend
+      - run: docker build -t luxrocket/realtime:ci realtime
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.luxrocket.example/ws/v1/cash-out.schema.json",
+  "title": "CASH_OUT command",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type",
+    "v",
+    "command_id",
+    "round_id",
+    "data"
+  ],
+  "properties": {
+    "type": {
+      "const": "CASH_OUT"
+    },
+    "v": {
+      "const": 1
+    },
+    "command_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "round_id": {
+      "type": "string"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bet_id"
+      ],
+      "properties": {
+        "bet_id": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

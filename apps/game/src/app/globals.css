@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+/* "Cosmos" theme tokens (doc 18 §1). Fonts are self-hosted in Phase B; system stack for now. */
+:root {
+  --bg: #05060a;
+  --surface: rgba(14, 17, 28, 0.72);
+  --text: #f2f4f8;
+  --text-muted: #9aa3b5;
+  --accent: #f5c04a;
+  --accent-2: #4cc9f0;
+  --success: #3ddc97;
+  --danger: #ff4d5e;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
