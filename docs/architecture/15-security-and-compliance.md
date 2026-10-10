@@ -50,6 +50,25 @@ Trust boundaries: Internet ↔ edge; operator parent page ↔ game iframe; brows
 - OWASP ASVS L2 baseline; L3 for auth and money paths.
 - Annual external penetration test + before real-money launch.
 
+## 3.1 Team access model (engineering & operations staff)
+
+The team is managed by role-based access with five access levels. A person holds one level for infrastructure plus any application roles (doc 12 §4) their job needs; levels never imply application roles and vice versa. All grants are made by `PLAT_OWNER` (or delegated to L4 for L0–L2), time-bound where marked, reviewed quarterly, and audited.
+
+| Level | Who (typical) | Code & CI | Environments | Production data | Secrets & keys |
+|-------|---------------|-----------|--------------|-----------------|----------------|
+| **L0 Contributor** | Contractors, designers, new joiners | Branches + PRs only; no merge to `main` | local, ci | None | None |
+| **L1 Engineer** | Developers | Merge after review (CODEOWNERS for money/outcome paths: `wallet`, `ledger`, `betting`, `settlement`, `realtime/round`, `outcome`) | local, ci, staging (shell) | None | Staging secrets only |
+| **L2 Senior / on-call** | Leads, on-call rotation | Approve PRs on protected paths; trigger production deploys of approved builds | + sandbox; production via deploy tool only (no shell) | Read-only replica via audited query tool, PII-free views | None directly |
+| **L3 Ops (break-glass)** | 1–2 trusted operators | Infra repo | Production shell **just-in-time**: requested, owner-approved, ≤ 4 h, session recorded | Read-only by default; write only under incident with second person present | Rotate secrets via runbook; never read seed KEK |
+| **L4 Owner** | You (`PLAT_OWNER`) | Repository admin, branch protection | All | All (audited) | Holds KEK custody and seed-ceremony keys (with one sealed recovery share offline) |
+
+Hard rules regardless of level:
+- **Nobody** can read seed-chain material or a future crash point; the seed KEK unwraps only inside rt hosts (doc 07 §7).
+- No standing production DB write access for any human; financial corrections only through the adjustment workflow.
+- Production shell, DB and KMS access via SSO + hardware-key MFA, from managed devices, through a bastion with session recording.
+- Joiner/mover/leaver: access granted from the level template, removed within 1 hour of departure; leaving an L3/L4 role triggers credential rotation (and a new seed chain if they ever held ceremony material).
+- Two-person rule applies to: production DB writes during incidents, seed ceremonies, KEK rotation.
+
 ## 4. Audit requirements
 - Hash-chained `audit.audit_event`; daily anchor (latest hash) written to WORM object storage and optionally emailed to an external auditor mailbox.
 - Audited: staff auth events, all admin/portal mutations, credential lifecycle, approvals, real-money toggles, ruleset/stream changes, seed ceremonies/activations, data exports, platform-staff views of player-level data, maintenance actions.

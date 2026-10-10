@@ -7,7 +7,7 @@ Legend — **Approval**: *Required* = blocks the gate shown; *Default OK* = we p
 | ID | Question | Why it matters | Proposed default | Approval / gate |
 |----|----------|----------------|------------------|-----------------|
 | OQ-01 | Which markets? | — | **Resolved 2026-10-10: open to all markets; each market enabled only by the owner (`PLAT_OWNER`) via the market registry (ADR-026)** | Closed |
-| OQ-02 | Team size/composition and target timeline | Roadmap sizing; feasibility of two runtimes | 3–5 engineers (1 Elixir-capable) | Required — Gate A |
+| OQ-02 | Team composition & access | — | **Resolved 2026-10-10: role-based access with levels L0–L4 (doc 15 §3.1)**; headcount still determines dates — roadmap stays in relative sizes until known | Closed (access) / headcount informational |
 | OQ-10 | Void-on-malfunction policy for interrupted rounds | Player fairness, regulator acceptance, financial cost | Void uncashed bets & refund; pay journaled cash-outs (ADR-005) | Required — Gate A |
 | OQ-12 | RNG certification path (hash-chain vs. certified RNG) per jurisdiction | May force a different outcome source | Hash-chain + drand salt; formula separable | Required — before Phase H, inform Phase C |
 | OQ-13 | House edge / target RTP | Core economics & certification | **Resolved 2026-10-10: 3 % edge, 97 % RTP** | Closed |

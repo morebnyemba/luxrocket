@@ -19,6 +19,7 @@ Empty repository: no commits, no remote branches, no code, no conventions to pre
 - **ADR-012** Clients render the curve from `launch_at`; 4 Hz corrective ticks.
 - **ADR-017/018** Separate frontends/origins; PixiJS deferred.
 - **ADR-026 (Accepted)** Open to all markets; only the owner can enable a market, with evidence recorded.
+- **Team access** L0–L4 access levels plus application RBAC; no human can read seeds or crash points (doc 15 §3.1).
 - **ADR-019** Tenant isolation with scoped repositories **and** Postgres RLS.
 
 ## 4. Alternatives rejected
@@ -70,7 +71,6 @@ Threat model T-01..T-20 with controls and tests (doc 15). Regulatory: product le
 ## 12. Assumptions & questions requiring approval
 | ID | Decision | Default proposed |
 |----|----------|------------------|
-| OQ-02 | Team size & timeline | 3–5 engineers incl. 1 Elixir-capable |
 | OQ-10 | Void-on-malfunction | Accept ADR-005 |
 | OQ-12 | RNG path | Hash-chain + drand; swappable |
 | OQ-14 | Max multiplier / max win | 10 000× / USD 10 000 equiv. |

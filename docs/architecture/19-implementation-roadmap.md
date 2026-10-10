@@ -1,6 +1,6 @@
 # 19 — Implementation Roadmap
 
-No calendar dates are given: the repository is empty and team capacity is unknown (OQ-02). Sizes are relative (S ≈ 1–2 engineer-weeks, M ≈ 3–5, L ≈ 6–10) and are to be re-estimated once the team is known.
+No calendar dates are given: the repository is empty and team headcount is unknown. Team membership and access are governed by the access-level model (doc 15 §3.1); dates require a headcount. Sizes are relative (S ≈ 1–2 engineer-weeks, M ≈ 3–5, L ≈ 6–10) and are to be re-estimated once the team is known.
 
 ## 1. Dependency graph
 
