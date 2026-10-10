@@ -32,6 +32,7 @@ Cards & charts (all from Prometheus/metrics API or reporting tables, refreshed �
 |-----------|-------|
 | Onboard operator (wizard) | Legal entity, contacts, jurisdictions, currencies, stream, integration model, commercial metadata (rev-share %, contract ref, start date) |
 | Status lifecycle | ONBOARDING → SANDBOX → LIVE ↔ SUSPENDED → TERMINATED; LIVE requires checklist (★) |
+| Markets (owner only) | Registry of all countries; set DISABLED / SANDBOX / REAL with evidence reference; visible to all platform roles, editable only by `PLAT_OWNER` (ADR-026). Disabling REAL revokes live sessions in that country. |
 | Real-money enablement ★ | Requires: signed contract flag, licence evidence reference, conformance tests passed, certification reference for the stream's ruleset, security review sign-off |
 | Allowed domains | Add/remove exact origins; verification by DNS TXT or file (recommended) |
 | Credentials | View metadata (kid, alg, created, last used, expiry); revoke; platform cannot view private keys or HMAC secrets after creation |
@@ -78,22 +79,23 @@ Staff users & roles; MFA status; sessions (revoke); audit log search with hash-c
 
 ## 4. Roles (platform realm)
 
-| Permission ↓ / Role → | SUPERADMIN | OPS | FINANCE | RISK | SUPPORT | GAME_RELEASE | AUDITOR |
-|-----------------------|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
-| View overview/health | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Manage operators (non-financial) | ✓ | ✓ | | | | | |
-| Enable real money ★ | ✓ (+approver) | | | ✓ approver | | | |
-| Manage credentials metadata/revoke | ✓ | ✓ | | | | | |
-| Game versions/rulesets/streams ★ | ✓ | | | approver | | ✓ | |
-| Seed-chain activation ★ | ✓ | | | approver | | ✓ | |
-| Maintenance / drain | ✓ | ✓ | | | | ✓ | |
-| View bets/transactions | ✓ | ✓ | ✓ | ✓ | ✓ (masked) | | ✓ |
-| Player-level search (audited) | ✓ | | ✓ | ✓ | ✓ | | ✓ |
-| Adjustments ★ | request/approve | | request | approve | | | |
-| Reconciliation resolve | ✓ | | ✓ | ✓ | | | |
-| Staff & roles | ✓ | | | | | | |
-| Audit log read | ✓ | | | ✓ | | | ✓ |
-No role can approve its own request. SUPERADMIN count ≤ 3, each with hardware-key MFA.
+| Permission ↓ / Role → | OWNER | SUPERADMIN | OPS | FINANCE | RISK | SUPPORT | GAME_RELEASE | AUDITOR |
+|-----------------------|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| **Enable/disable markets** | **✓ (only)** | | | | | | | |
+| View overview/health | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Manage operators (non-financial) | ✓ | ✓ | ✓ | | | | | |
+| Enable real money ★ | ✓ | ✓ (+approver) | | | ✓ approver | | | |
+| Manage credentials metadata/revoke | ✓ | ✓ | ✓ | | | | | |
+| Game versions/rulesets/streams ★ | ✓ | ✓ | | | approver | | ✓ | |
+| Seed-chain activation ★ | ✓ | ✓ | | | approver | | ✓ | |
+| Maintenance / drain | ✓ | ✓ | ✓ | | | | ✓ | |
+| View bets/transactions | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ (masked) | | ✓ |
+| Player-level search (audited) | ✓ | ✓ | | ✓ | ✓ | ✓ | | ✓ |
+| Adjustments ★ | ✓ | request/approve | | request | approve | | | |
+| Reconciliation resolve | ✓ | ✓ | | ✓ | ✓ | | | |
+| Staff & roles | ✓ | ✓ | | | | | | |
+| Audit log read | ✓ | ✓ | | | ✓ | | | ✓ |
+No role can approve its own request (exception: `PLAT_OWNER` market changes, ADR-026). Exactly one OWNER; SUPERADMIN count ≤ 3; all with hardware-key MFA.
 
 ## 5. Key workflows
 1. **Operator go-live**: onboarding → sandbox credentials → conformance tests pass → domains verified → commercial/licence evidence → real-money request ★ → approved → status LIVE, `real_money_enabled = true` → webhook `game.availability_changed`.

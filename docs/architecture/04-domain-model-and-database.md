@@ -94,7 +94,8 @@ Columns are abbreviated; `id` is UUIDv7 PK unless stated; all tables have `creat
 | `operator_config_version` | Versioned operator-editable & platform-set settings | `operator_id`, `version` (unique per operator), `settings` jsonb (schema-validated), `effective_from`, `created_by`; only newest effective row applies | Append-only | Internal |
 | `operator_currency_limit` | Per-currency limits | unique (`operator_id`,`currency`); `min_stake_minor`, `max_stake_minor`, `max_win_minor`, `round_exposure_limit_minor`; CHECK min ≤ max, all > 0 | Versioned via audit | Internal |
 | `operator_wallet_endpoint` | Wallet API settings | `operator_id` unique, `base_url`, `auth_scheme`, `timeout_ms` (≤ 900 debit), `max_concurrency`, `send_settle_on_loss` bool, `supports_status_query` bool | — | Confidential |
-| `operator_jurisdiction` | Permitted player countries | unique (`operator_id`,`country_code`) | — | Internal |
+| `market` | Platform-level country registry (ADR-026) | `country_code` PK (ISO-3166-1 alpha-2), `status` ∈ {DISABLED, SANDBOX, REAL}, `requires_second_approver` bool, `evidence_ref`, `changed_by` (must hold PLAT_OWNER — enforced in service and by DB trigger checking role), `changed_at`; history in audit | Never deleted | Internal |
+| `operator_jurisdiction` | Permitted player countries (subset of enabled markets) | unique (`operator_id`,`country_code`) | — | Internal |
 | `currency` | Currency registry | `code` PK, `exponent`, `enabled` | — | Public |
 
 ### 4.3 Players and sessions

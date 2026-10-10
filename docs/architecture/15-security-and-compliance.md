@@ -66,7 +66,7 @@ Trust boundaries: Internet ↔ edge; operator parent page ↔ game iframe; brows
 | Safeguard | Implementation |
 |-----------|----------------|
 | Operator-enforced eligibility | Operator only creates sessions for eligible players; `PUT /players/{id}/restrictions` lets operators push exclusions; Django rejects bets for restricted players |
-| Jurisdiction restrictions | `operator_jurisdiction` allowlist checked at session creation (country from operator) |
+| Jurisdiction restrictions | Session allowed only if platform `market` permits the mode (owner-controlled, ADR-026) and the country is in the operator's `operator_jurisdiction` (country from operator) |
 | Stake & exposure limits | Per-operator × currency limits; max win; round exposure (doc 08 §9) |
 | Session reminders | `SESSION_REMINDER` at operator/jurisdiction interval with elapsed time and net result for the session; requires acknowledgement |
 | Time limits | Session hard limit ⇒ session ends gracefully after current round (active bets still settle) |
@@ -89,11 +89,13 @@ Trust boundaries: Internet ↔ edge; operator parent page ↔ game iframe; brows
 10. Tax treatment of supplier revenue share; withholding obligations.
 11. AML obligations for a B2B supplier.
 
+The platform is open to all markets; the questions above are answered per market by the owner before switching it to REAL, with the evidence reference stored on the `market` record (ADR-026). The engineering consequences are fixed: rounds per stream, a market needing a different ruleset/certification gets its own stream.
+
 ### 7.1 Market notes (to validate with counsel — indicative only)
 | Market | Regulator (indicative) | Initial engineering stance |
 |--------|------------------------|----------------------------|
 | Zimbabwe | Lotteries and Gaming Board (Lotteries and Gaming Act) | Primary target; confirm licensing route for online games & suppliers |
-| South Africa | National Gambling Board + provincial boards | **High risk**: online casino-style games are broadly prohibited under the National Gambling Act outside licensed categories; do not assume addressable (OQ-01) |
+| South Africa | National Gambling Board + provincial boards | **High risk**: online casino-style games are broadly prohibited under the National Gambling Act outside licensed categories; owner decides via the market registry (ADR-026) |
 | Zambia | Betting Control and Licensing Board / relevant ministry | Confirm whether online casino-type games are licensable |
 | Botswana | Gambling Authority | Confirm remote gaming licensing status |
 | Mozambique, Malawi, Namibia | Respective gaming authorities | Confirm |

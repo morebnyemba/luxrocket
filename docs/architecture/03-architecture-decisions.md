@@ -31,6 +31,7 @@ All ADRs below are **Proposed** until doc 22 is approved. Later implementation w
 | ADR-022 | Short-lived signed game-session tokens + single-use WS tickets | Proposed | High |
 | ADR-023 | No FX in platform; per-currency limits | Proposed | Low |
 | ADR-024 | Bet admission journaled; debit is not inclusion | Proposed | High |
+| ADR-026 | Open to all markets; market enablement is owner-only | **Accepted** (owner, 2026-10-10) | High |
 
 ---
 
@@ -149,6 +150,15 @@ All ADRs below are **Proposed** until doc 22 is approved. Later implementation w
 ## ADR-024 — Debit is not inclusion
 **Decision.** A successful debit makes a bet *eligible*; the coordinator's journaled `BET_ADMITTED` makes it *part of the round*. A debited bet that is excluded (late, round voided, coordinator lost) is refunded via rollback.
 **Consequences.** Bet lifecycle has a `DEBITED` (pending admission) state. Reconciler refunds any debited bet without an admission fact once its round is terminal.
+
+## ADR-026 — Open to all markets; market enablement is owner-only
+**Decision.** No country is excluded by design. A platform-level `market` registry holds every ISO-3166 country with `status ∈ {DISABLED, SANDBOX, REAL}` (default DISABLED for REAL, SANDBOX allowed everywhere). Changing a market's status is a permission held **only** by `PLAT_OWNER` — a single account (the founder), WebAuthn hardware key, step-up on every change, no delegation, no second approver. Every change records the owner's evidence reference (licence, legal opinion, certificate) and is audited.
+A session/bet is allowed only if: market(country) permits the mode **and** the operator lists the country in `operator_jurisdiction` **and** the operator is enabled for that mode.
+**Consequences.**
+- Legality is an owner decision, not a code decision; the system enforces whatever the owner enables, and records who decided and on what evidence.
+- Key-person risk: if the owner account is lost, markets cannot be changed. Mitigation: sealed break-glass recovery (two recovery keys stored offline; use triggers alerts and is audited). Recovery does not grant a second permanent owner.
+- Some regulators require segregation of duties for such changes; if one does, the owner can add a second approver for that market only (setting stored on the market), without changing the default.
+- Disabling a market for REAL revokes affected sessions at once; already accepted bets settle normally.
 
 ## Unresolved decisions (tracked in doc 20)
 OQ-10 (void policy), OQ-12 (RNG certification path), OQ-14 (max multiplier & max win), OQ-15 (wallet `settle` call), OQ-05 (managed Postgres availability), OQ-20 (cancel bet in betting window).

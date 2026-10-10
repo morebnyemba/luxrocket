@@ -7,7 +7,7 @@
 | **Player** | Embedded game | Authenticated by the operator. Known to LUX ROCKET only by a pseudonymous `player_ref` scoped to the operator. |
 | **Operator system** | Operator API | The operator's backend: creates sessions, receives wallet callbacks and webhooks. |
 | **Operator staff** | Operator portal | `OP_OWNER`, `OP_ADMIN`, `OP_DEVELOPER`, `OP_FINANCE`, `OP_SUPPORT`, `OP_VIEWER` (doc 13 §4). |
-| **Platform staff** | Platform admin | `PLAT_SUPERADMIN`, `PLAT_OPS`, `PLAT_FINANCE`, `PLAT_RISK`, `PLAT_SUPPORT`, `PLAT_GAME_RELEASE`, `PLAT_AUDITOR` (doc 12 §4). |
+| **Platform staff** | Platform admin | `PLAT_OWNER` (exactly one account: the founder), `PLAT_SUPERADMIN`, `PLAT_OPS`, `PLAT_FINANCE`, `PLAT_RISK`, `PLAT_SUPPORT`, `PLAT_GAME_RELEASE`, `PLAT_AUDITOR` (doc 12 §4). |
 | **Verifier** | Public verify page / offline script | Anyone (player, regulator, auditor) checking a completed round. |
 | **Service principals** | Internal | `django-api`, `django-worker`, `wallet-worker`, `phoenix-rt`; each with distinct credentials and DB roles. |
 
@@ -33,6 +33,7 @@ The integration agreement MUST oblige the operator to:
 | FR-003 | Launch tokens MUST be single-use, ≤ 60 s TTL, audience-bound, and exchanged server-side for scoped game-session credentials. |
 | FR-004 | No permanent credential, wallet credential or PII may appear in an iframe URL. |
 | FR-005 | Operators MUST be able to revoke a single session or all sessions of a player; revocation takes effect on the WebSocket within 5 s (target). |
+| FR-007 | The platform is open to all markets. A player country may be served only if the platform `market` is enabled for that mode (sandbox/real) **and** the operator is permitted in it. Only `PLAT_OWNER` can enable, disable or change a market's mode. |
 | FR-006 | Core authentication MUST NOT depend on third-party cookies. |
 
 ### 3.2 Game and rounds

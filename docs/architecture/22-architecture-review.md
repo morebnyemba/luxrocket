@@ -18,6 +18,7 @@ Empty repository: no commits, no remote branches, no code, no conventions to pre
 - **ADR-009/022** postMessage launch handshake (fragment fallback), 15-min in-memory session tokens, single-use WS tickets.
 - **ADR-012** Clients render the curve from `launch_at`; 4 Hz corrective ticks.
 - **ADR-017/018** Separate frontends/origins; PixiJS deferred.
+- **ADR-026 (Accepted)** Open to all markets; only the owner can enable a market, with evidence recorded.
 - **ADR-019** Tenant isolation with scoped repositories **and** Postgres RLS.
 
 ## 4. Alternatives rejected
@@ -69,7 +70,6 @@ Threat model T-01..T-20 with controls and tests (doc 15). Regulatory: product le
 ## 12. Assumptions & questions requiring approval
 | ID | Decision | Default proposed |
 |----|----------|------------------|
-| OQ-01 | First markets (and SA stance) | Zimbabwe first; others after counsel |
 | OQ-02 | Team size & timeline | 3–5 engineers incl. 1 Elixir-capable |
 | OQ-10 | Void-on-malfunction | Accept ADR-005 |
 | OQ-12 | RNG path | Hash-chain + drand; swappable |

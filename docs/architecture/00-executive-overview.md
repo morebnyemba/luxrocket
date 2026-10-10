@@ -80,7 +80,7 @@ Because the remote has no default branch, the first push establishes one. A pull
 5. **Single-use launch tokens in Redis** can be replayed after a Redis failover. Single-use enforcement lives in Postgres.
 6. **"Globally shared rounds" across all operators** collides with per-jurisdiction certification. Rounds are shared *within a round stream*; the default is one stream per environment, but the model allows jurisdiction-specific streams.
 7. **Operational load.** Postgres + Redis + RabbitMQ + Phoenix cluster + Django + workers + three frontends is a lot for a small team. Every component has a justified, narrow job (doc 02 §7); RabbitMQ is retained because it was mandated, but nothing correctness-critical depends on it being lossless (journal/outbox + reconciliation cover it).
-8. **Market risk**: online casino-style games are restricted or prohibited in some neighbouring markets (notably South Africa outside licensed categories). The product plan must not assume every "neighbouring market" is addressable (doc 15 §7.1, OQ-01).
+8. **Markets: open to all, owner-gated (decided 2026-10-10).** No market is hard-coded in or out. Every country exists in a platform `market` registry; enabling one for sandbox or real money is an action only the platform owner (`PLAT_OWNER`, one account) can take. The platform does not decide legality — the owner does, per market, with evidence recorded (doc 15 §7, ADR-026). Legal risk in restricted markets (e.g. South Africa) is unchanged; it becomes the owner's explicit, audited decision rather than an architectural assumption.
 
 ## 8. What approval unlocks
 
