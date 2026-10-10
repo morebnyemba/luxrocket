@@ -1,6 +1,6 @@
 # LUX ROCKET — Architecture Package
 
-Status: **DRAFT — awaiting architecture review and approval (Phase A gate)**
+Status: **APPROVED — Gate A passed 2026-10-10** (proposed defaults accepted for remaining open questions; see doc 20). Real-money operation is not covered by this approval.
 Date: 2026-10-10
 Scope: Phase 1 (architecture-first discovery). No application code, dependencies or visual assets exist yet.
 

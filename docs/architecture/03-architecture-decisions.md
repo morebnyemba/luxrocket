@@ -1,36 +1,36 @@
 # 03 — Architecture Decision Register
 
 Status values: **Proposed** (awaiting approval), **Accepted**, **Superseded**, **Rejected**.
-All ADRs below are **Proposed** until doc 22 is approved. Later implementation work MUST NOT contradict an Accepted ADR without a superseding ADR.
+Gate A was approved on 2026-10-10; all ADRs in the register are **Accepted**. Later implementation work MUST NOT contradict an Accepted ADR without a superseding ADR.
 
 ## Register
 
 | ADR | Title | Status | Approval sensitivity |
 |-----|-------|--------|----------------------|
-| ADR-001 | Monorepo with separately deployable apps | Proposed | Low |
-| ADR-002 | Phoenix owns time & round facts; Django owns money & business records | Proposed | **High** |
-| ADR-003 | Phoenix round journal as append-only fact log and outbox | Proposed | High |
-| ADR-004 | Coordinator ownership via Postgres lease + fencing token | Proposed | High |
-| ADR-005 | Void-on-malfunction for interrupted rounds | Proposed | **High (regulatory/commercial)** |
-| ADR-006 | Hash-chain provably-fair outcome with post-commitment public salt | Proposed | **High (certification)** |
-| ADR-007 | Seamless wallet with rollback-on-doubt | Proposed | **High (commercial)** |
-| ADR-008 | Integer money and integer multipliers | Proposed | Medium |
-| ADR-009 | postMessage launch handshake + fragment fallback | Proposed | High |
-| ADR-010 | Ed25519 request signing for operator API | Proposed | Medium |
-| ADR-011 | Bet & cash-out commands over WebSocket; everything else HTTPS | Proposed | Medium |
-| ADR-012 | Deterministic client-side curve; low-rate server ticks | Proposed | Medium |
-| ADR-013 | Phoenix.PubSub on distributed Erlang (not Redis) | Proposed | Low |
-| ADR-014 | Redis is never authoritative | Proposed | Medium |
-| ADR-015 | Transactional outbox + RabbitMQ with idempotent consumers | Proposed | Medium |
-| ADR-016 | Django ASGI internal API + asyncio wallet-worker (aiohttp); Celery for scheduled jobs | Proposed | Medium |
-| ADR-017 | Three separate frontends; game as static export on its own origin | Proposed | Medium |
-| ADR-018 | Defer PixiJS; DOM HUD + Three.js effects | Proposed | Low |
-| ADR-019 | Tenant isolation: scoped repositories + Postgres RLS | Proposed | High |
-| ADR-020 | Round streams as the unit of shared rounds | Proposed | High |
-| ADR-021 | Docker on Linux VMs, no Kubernetes at launch; Johannesburg region | Proposed | Medium |
-| ADR-022 | Short-lived signed game-session tokens + single-use WS tickets | Proposed | High |
-| ADR-023 | No FX in platform; per-currency limits | Proposed | Low |
-| ADR-024 | Bet admission journaled; debit is not inclusion | Proposed | High |
+| ADR-001 | Monorepo with separately deployable apps | Accepted (Gate A, 2026-10-10) | Low |
+| ADR-002 | Phoenix owns time & round facts; Django owns money & business records | Accepted (Gate A, 2026-10-10) | **High** |
+| ADR-003 | Phoenix round journal as append-only fact log and outbox | Accepted (Gate A, 2026-10-10) | High |
+| ADR-004 | Coordinator ownership via Postgres lease + fencing token | Accepted (Gate A, 2026-10-10) | High |
+| ADR-005 | Void-on-malfunction for interrupted rounds | Accepted (Gate A, 2026-10-10) | **High (regulatory/commercial)** |
+| ADR-006 | Hash-chain provably-fair outcome with post-commitment public salt | Accepted (Gate A, 2026-10-10) | **High (certification)** |
+| ADR-007 | Seamless wallet with rollback-on-doubt | Accepted (Gate A, 2026-10-10) | **High (commercial)** |
+| ADR-008 | Integer money and integer multipliers | Accepted (Gate A, 2026-10-10) | Medium |
+| ADR-009 | postMessage launch handshake + fragment fallback | Accepted (Gate A, 2026-10-10) | High |
+| ADR-010 | Ed25519 request signing for operator API | Accepted (Gate A, 2026-10-10) | Medium |
+| ADR-011 | Bet & cash-out commands over WebSocket; everything else HTTPS | Accepted (Gate A, 2026-10-10) | Medium |
+| ADR-012 | Deterministic client-side curve; low-rate server ticks | Accepted (Gate A, 2026-10-10) | Medium |
+| ADR-013 | Phoenix.PubSub on distributed Erlang (not Redis) | Accepted (Gate A, 2026-10-10) | Low |
+| ADR-014 | Redis is never authoritative | Accepted (Gate A, 2026-10-10) | Medium |
+| ADR-015 | Transactional outbox + RabbitMQ with idempotent consumers | Accepted (Gate A, 2026-10-10) | Medium |
+| ADR-016 | Django ASGI internal API + asyncio wallet-worker (aiohttp); Celery for scheduled jobs | Accepted (Gate A, 2026-10-10) | Medium |
+| ADR-017 | Three separate frontends; game as static export on its own origin | Accepted (Gate A, 2026-10-10) | Medium |
+| ADR-018 | Defer PixiJS; DOM HUD + Three.js effects | Accepted (Gate A, 2026-10-10) | Low |
+| ADR-019 | Tenant isolation: scoped repositories + Postgres RLS | Accepted (Gate A, 2026-10-10) | High |
+| ADR-020 | Round streams as the unit of shared rounds | Accepted (Gate A, 2026-10-10) | High |
+| ADR-021 | Docker on Linux VMs, no Kubernetes at launch; Johannesburg region | Accepted (Gate A, 2026-10-10) | Medium |
+| ADR-022 | Short-lived signed game-session tokens + single-use WS tickets | Accepted (Gate A, 2026-10-10) | High |
+| ADR-023 | No FX in platform; per-currency limits | Accepted (Gate A, 2026-10-10) | Low |
+| ADR-024 | Bet admission journaled; debit is not inclusion | Accepted (Gate A, 2026-10-10) | High |
 | ADR-026 | Open to all markets; market enablement is owner-only | **Accepted** (owner, 2026-10-10) | High |
 
 ---

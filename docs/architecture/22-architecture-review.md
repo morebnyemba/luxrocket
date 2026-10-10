@@ -1,6 +1,8 @@
 # 22 — Architecture Review (Approval Gate A)
 
-**Decision requested:** approve the architecture (ADRs 001–024 as Proposed) and answer or accept defaults for the approval-critical questions in §12, so Phase B and the scaffold can start. Real-money operation is **not** part of this approval.
+**Outcome: APPROVED by the owner on 2026-10-10.** Proposed defaults accepted for OQ-09, OQ-10, OQ-12, OQ-14 and OQ-17; OQ-07 (trademark) remains a pre-launch check. Implementation proceeds with the scaffold and Phase B.
+
+**Original decision requested:** approve the architecture (ADRs 001–024 as Proposed) and answer or accept defaults for the approval-critical questions in §12, so Phase B and the scaffold can start. Real-money operation is **not** part of this approval.
 
 ## 1. Proposed architecture (summary)
 One monorepo producing: a static embeddable game (Next.js export on CDN, Three.js), two Next.js consoles (platform admin, operator portal), a Django platform (operator API, game API, internal API, async wallet worker, journal consumer, Celery jobs), and a Phoenix cluster that terminates WebSockets and runs one leased, fenced **RoundCoordinator per round stream**. PostgreSQL is the only source of truth (schemas `platform`, `rt`, `audit`); Redis is cache-only; RabbitMQ carries at-least-once events backed by outbox/journal tables. Single Johannesburg region on Docker/Linux VMs, no Kubernetes.
