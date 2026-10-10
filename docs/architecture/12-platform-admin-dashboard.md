@@ -44,7 +44,7 @@ Cards & charts (all from Prometheus/metrics API or reporting tables, refreshed �
 |-----------|-------|
 | Game versions | Create DRAFT, attach build hashes/asset manifest, move to CERTIFYING/APPROVED ★/ACTIVE/RETIRED |
 | Rulesets | Create from template; parameters schema-validated; RTP calculator preview; APPROVED ★ requires certificate reference; immutable after approval |
-| Global round sequence | Exactly one per environment (no create/assign actions). Bind version + ruleset (applies at next round boundary ★, affects every operator — requires confirmation that the ruleset is certified for all live jurisdictions) |
+| Streams | Bind version + ruleset (applies at next round boundary ★), assign operators, set mode |
 | Seed chains | Ceremony status, terminal hash, salt source/round, usage %, activation ★. Seeds never displayed. |
 | Controlled rollout | Per operator pin / percentage of operators / sandbox first |
 | Maintenance | Schedule window (notifies operators by webhook ≥ 24 h ahead when possible); drain stream at round boundary; emergency stop (★ after the fact review) — voids nothing already completed; current round finishes or is voided per ADR-005 if a fault |

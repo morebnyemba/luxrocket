@@ -3,7 +3,7 @@
 **Decision requested:** approve the architecture (ADRs 001–024 as Proposed) and answer or accept defaults for the approval-critical questions in §12, so Phase B and the scaffold can start. Real-money operation is **not** part of this approval.
 
 ## 1. Proposed architecture (summary)
-One monorepo producing: a static embeddable game (Next.js export on CDN, Three.js), two Next.js consoles (platform admin, operator portal), a Django platform (operator API, game API, internal API, async wallet worker, journal consumer, Celery jobs), and a Phoenix cluster that terminates WebSockets and runs one leased, fenced **RoundCoordinator for a single global round sequence** shared by every operator and jurisdiction. PostgreSQL is the only source of truth (schemas `platform`, `rt`, `audit`); Redis is cache-only; RabbitMQ carries at-least-once events backed by outbox/journal tables. Single Johannesburg region on Docker/Linux VMs, no Kubernetes.
+One monorepo producing: a static embeddable game (Next.js export on CDN, Three.js), two Next.js consoles (platform admin, operator portal), a Django platform (operator API, game API, internal API, async wallet worker, journal consumer, Celery jobs), and a Phoenix cluster that terminates WebSockets and runs one leased, fenced **RoundCoordinator per round stream**. PostgreSQL is the only source of truth (schemas `platform`, `rt`, `audit`); Redis is cache-only; RabbitMQ carries at-least-once events backed by outbox/journal tables. Single Johannesburg region on Docker/Linux VMs, no Kubernetes.
 
 ## 2. Repository findings
 Empty repository: no commits, no remote branches, no code, no conventions to preserve. This package establishes the first conventions. No secrets or configuration risks present.
@@ -18,8 +18,6 @@ Empty repository: no commits, no remote branches, no code, no conventions to pre
 - **ADR-009/022** postMessage launch handshake (fragment fallback), 15-min in-memory session tokens, single-use WS tickets.
 - **ADR-012** Clients render the curve from `launch_at`; 4 Hz corrective ticks.
 - **ADR-017/018** Separate frontends/origins; PixiJS deferred.
-- **ADR-020 (Accepted)** Rounds are global; per-operator differences limited to limits/currency/RG.
-- **ADR-025** Player-sharded cash-out arbitration when one coordinator saturates.
 - **ADR-019** Tenant isolation with scoped repositories **and** Postgres RLS.
 
 ## 4. Alternatives rejected
@@ -81,7 +79,6 @@ Threat model T-01..T-20 with controls and tests (doc 15). Regulatory: product le
 | OQ-17 | Tie rule | Tie to player |
 | OQ-18 | Manual pricing precision | x10000 internal |
 | OQ-07 | Trademark clearance | Check before public launch |
-| OQ-36 | One certification valid in all served markets (consequence of global rounds) | Markets that need a different ruleset/RNG/local servers are excluded |
 Plus assumptions AS-01..AS-10 (doc 20 §5), notably that operators accept the rollback-of-unknown and credit-after-session-end obligations.
 
 ## 13. Documentation created

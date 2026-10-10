@@ -100,7 +100,7 @@ Trust boundaries: Internet ↔ edge; operator parent page ↔ game iframe; brows
 
 ## 8. Compliance-driven engineering hooks
 - Ruleset immutability and certificate reference (doc 12).
-- Rounds are global (ADR-020): one ruleset/RNG certification must cover every live jurisdiction; onboarding a new jurisdiction requires confirming the existing certificate is accepted there, otherwise the market cannot be served.
+- Stream per jurisdiction if certification differs (ADR-020).
 - Per-operator real-money gate with evidence references.
 - Regulator report exports (format TBD per jurisdiction).
 - Clock sync evidence (NTP/chrony logs retained).

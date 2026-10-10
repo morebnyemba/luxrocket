@@ -4,7 +4,7 @@
 
 Phoenix (`realtime/`, OTP app `:lux_rt`) **does**:
 - Terminate player WebSockets, authenticate them, deliver events.
-- Run exactly one `RoundCoordinator` for the **global** round sequence (leased, fenced; ADR-020), optionally with player-sharded `BetShard` processes for cash-out arbitration (ADR-025).
+- Run exactly one `RoundCoordinator` per round stream (leased, fenced).
 - Decide betting cut-off, bet admission, launch, cash-out acceptance (manual & auto), crash, void.
 - Journal every round fact to `rt.round_journal` and relay it to RabbitMQ.
 - Derive outcomes from the committed seed chain.
@@ -35,7 +35,7 @@ flowchart TB
   APP --> EP["LuxRtWeb.Endpoint (UserSocket, GameChannel)"]
 ```
 
-- Production has exactly one enabled stream (`global`). Every node runs its `StreamSupervisor` (and `LeaseContender`); only the lease holder starts `CoordinatorSupervisor`.
+- Every node runs a `StreamSupervisor` (and `LeaseContender`) for every enabled stream; only the lease holder starts `CoordinatorSupervisor`.
 - `one_for_all` under `CoordinatorSupervisor`: if the journal writer or coordinator dies, both restart **and the lease is re-validated** before resuming; a restart mid-round results in void (§7).
 - Coordinators are found via `:pg` group `{:coordinator, stream_id}`. Duplicates during partitions are harmless: a coordinator without the current fencing token cannot journal anything and rejects commands with `COORDINATOR_UNAVAILABLE` (client retries).
 
@@ -131,9 +131,6 @@ Within the single coordinator process (therefore serialised with the crash):
 
 ### 5.6 Journal relay
 A per-node process selects unrelayed entries (`relayed_at IS NULL`, ordered by `stream_seq`, `FOR UPDATE SKIP LOCKED`), publishes to exchange `rt.events` with routing key `stream.{id}.{type}`, waits for publisher confirms, then sets `relayed_at`. At-least-once; Django deduplicates by `event_id`.
-
-### 5.7 Scaling the single global coordinator (ADR-025)
-Stage 1 keeps all command handling in the coordinator. Promotion to Stage 2 (player-sharded `BetShard`s) is triggered when load tests or production show any of: coordinator mailbox p99 > 200 messages, command decision p99 > 20 ms, or scheduler utilisation of the coordinator's node > 70 % during flights. Shard rules: shard = `hash(operator_id, player_ref) mod nodes`; PLACE_BET admission and cash-outs for a player always go to that player's shard; the coordinator owns phase transitions and broadcasts; `ROUND_CRASHED` waits for all shards' finalisation acks (bounded by `crash_grace_ms` + 50 ms, otherwise halt → void).
 
 ## 6. Fan-out and snapshots
 
