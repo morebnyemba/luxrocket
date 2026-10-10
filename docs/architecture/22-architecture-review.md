@@ -50,8 +50,7 @@ Operator backend creates a session (Ed25519-signed) → receives a ≤ 60 s sing
 Independent client state machines per panel (IDLE → PLACING → PLACED → ACTIVE → CASHING_OUT → CASHED_OUT → SETTLED, with LOST/REJECTED/REFUNDING/RECOVERING branches). Server: PENDING_DEBIT → DEBITED → ACTIVE → CASHED_OUT/LOST/VOIDED; unknown debits and late debits are refunded. One bet per panel per player per round, enforced in the DB. Auto cash-outs run in the coordinator at curve crossing time; `CASHOUT_ACCEPTED` is sent only after the fact is journaled; `SETTLEMENT_CONFIRMED` after the operator acknowledges the credit.
 
 ## 9. Game mathematics risks
-- Edge, cap, max-win, tie rule and manual pricing precision need decisions (OQ-13/14/17/18).
-- Manual cash-out rounding drag (up to ~1 % at low multipliers) unless priced at x10000.
+- Decided: 3 % edge / 97 % RTP (OQ-13) and 0.0001× manual pricing (OQ-18). Still open: cap, max-win and tie rule (OQ-14/17).
 - Provable fairness does not exclude insider knowledge of the seed chain → key management is a primary control.
 - RNG acceptability by regulators is unknown (OQ-12).
 - Requires independent mathematical review and lab certification before production.
@@ -74,10 +73,8 @@ Threat model T-01..T-20 with controls and tests (doc 15). Regulatory: product le
 | OQ-02 | Team size & timeline | 3–5 engineers incl. 1 Elixir-capable |
 | OQ-10 | Void-on-malfunction | Accept ADR-005 |
 | OQ-12 | RNG path | Hash-chain + drand; swappable |
-| OQ-13 | House edge | 3 % |
 | OQ-14 | Max multiplier / max win | 10 000× / USD 10 000 equiv. |
 | OQ-17 | Tie rule | Tie to player |
-| OQ-18 | Manual pricing precision | x10000 internal |
 | OQ-07 | Trademark clearance | Check before public launch |
 Plus assumptions AS-01..AS-10 (doc 20 §5), notably that operators accept the rollback-of-unknown and credit-after-session-end obligations.
 

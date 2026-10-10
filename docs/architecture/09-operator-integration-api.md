@@ -163,7 +163,7 @@ Base URL configured per operator. All requests signed (§3). All amounts are **s
 }
 ```
 ### 6.2 Credit request
-Same envelope plus `"type": "WIN"`, `"multiplier_x100": 235`, `"amount"` = payout, `"debit_transaction_id"`. `amount` may be `"0"` only on `/settle`.
+Same envelope plus `"type": "WIN"`, `"multiplier_x10000": 23456`, `"amount"` = payout, `"debit_transaction_id"`. `amount` may be `"0"` only on `/settle`.
 
 ### 6.3 Rollback request
 ```json
@@ -218,14 +218,14 @@ Delivered `POST` to registered URLs, signed (§3), at-least-once, retried 1 m, 5
   }
 }
 ```
-Example `bet.settled.data`: `{ "bet_id", "round_id", "player_id", "currency", "stake": "500", "outcome": "WIN", "multiplier_x100": 235, "payout": "1175", "transactions": ["tx_…","tx_…"] }`.
+Example `bet.settled.data`: `{ "bet_id", "round_id", "player_id", "currency", "stake": "500", "outcome": "WIN", "multiplier_x10000": 23456, "payout": "1172", "transactions": ["tx_…","tx_…"] }`.
 
 ## 8. Settlement response (operator queries a bet)
 `GET /bets/{bet_id}` →
 ```json
 { "bet_id": "bet_…", "round_id": "rnd_…", "player_id": "p-778", "panel": 1,
-  "currency": "USD", "stake": "500", "auto_cashout_x100": 1000,
-  "status": "CASHED_OUT", "cashout_x100": 1000, "payout": "5000",
+  "currency": "USD", "stake": "500", "auto_cashout_x10000": 100000,
+  "status": "CASHED_OUT", "cashout_x10000": 100000, "payout": "5000",
   "settlement": { "outcome": "WIN", "status": "CONFIRMED", "confirmed_at": "…" },
   "transactions": [
     { "transaction_id": "tx_…", "type": "DEBIT", "amount": "500", "status": "SUCCEEDED" },

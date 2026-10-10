@@ -61,9 +61,9 @@ flowchart LR
 ## 3. Multiplier display rules
 
 1. Before launch: shows countdown to `launch_at`.
-2. In flight: `m_display(t) = floor100(exp(λ · (now_server_est − launch_at)))`, where `now_server_est = Date.now() + offset`.
+2. In flight: `m_display(t) = floor10000(exp(λ · (now_server_est − launch_at)))`, where `now_server_est = Date.now() + offset`.
 3. `MULTIPLIER_UPDATE` corrections: if |local − server| > 2 %, re-estimate offset (smoothly).
-4. `ROUND_CRASHED`: snap to `crash_x100`, play crash. A display overshoot of up to one network RTT is possible (typically ≤ 0.05× at moderate multipliers); the crash value shown is authoritative.
+4. `ROUND_CRASHED`: snap to `crash_x10000`, play crash. A display overshoot of up to one network RTT is possible (typically ≤ 0.05× at moderate multipliers); the crash value shown is authoritative.
 5. The "CASH OUT {amount}" label is an estimate; the confirmation shows the server's multiplier and payout.
 6. Never interpolate *past* a missing `ROUND_CRASHED` for more than 3 s without any server message: freeze with "Waiting for server…" and `SYNC`.
 

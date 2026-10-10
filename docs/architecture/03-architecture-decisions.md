@@ -87,7 +87,7 @@ All ADRs below are **Proposed** until doc 22 is approved. Later implementation w
 **Consequences.** Operators must implement idempotent rollback-of-unknown semantics (doc 01 §2). Players occasionally see a refunded "failed" bet after a timeout — correct and safe.
 
 ## ADR-008 — Integer money
-**Decision.** `amount_minor BIGINT` + `currency CHAR(3)`; per-currency exponent from `CurrencyConfiguration`. Multipliers `multiplier_x100 INT`. Payout = `floor(stake_minor × multiplier_x100 / 100)`, then `min(·, max_win_minor)`.
+**Decision.** `amount_minor BIGINT` + `currency CHAR(3)`; per-currency exponent from `CurrencyConfiguration`. Multipliers `multiplier_x10000 INT` (one unit everywhere; crash points and auto targets are multiples of 100). Payout = `floor(stake_minor × multiplier_x10000 / 10000)`, then `min(·, max_win_minor)`.
 **Consequences.** Python `int`, Elixir integers and JS `BigInt`/safe integers; JSON carries amounts as **strings** to avoid JS double precision issues above 2^53.
 
 ## ADR-009 — Launch handshake
@@ -151,4 +151,4 @@ All ADRs below are **Proposed** until doc 22 is approved. Later implementation w
 **Consequences.** Bet lifecycle has a `DEBITED` (pending admission) state. Reconciler refunds any debited bet without an admission fact once its round is terminal.
 
 ## Unresolved decisions (tracked in doc 20)
-OQ-10 (void policy), OQ-12 (RNG certification path), OQ-13 (house edge), OQ-14 (max multiplier & max win), OQ-15 (wallet `settle` call), OQ-05 (managed Postgres availability), OQ-20 (cancel bet in betting window).
+OQ-10 (void policy), OQ-12 (RNG certification path), OQ-14 (max multiplier & max win), OQ-15 (wallet `settle` call), OQ-05 (managed Postgres availability), OQ-20 (cancel bet in betting window).

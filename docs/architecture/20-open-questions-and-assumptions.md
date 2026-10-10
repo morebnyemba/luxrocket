@@ -10,10 +10,10 @@ Legend — **Approval**: *Required* = blocks the gate shown; *Default OK* = we p
 | OQ-02 | Team size/composition and target timeline | Roadmap sizing; feasibility of two runtimes | 3–5 engineers (1 Elixir-capable) | Required — Gate A |
 | OQ-10 | Void-on-malfunction policy for interrupted rounds | Player fairness, regulator acceptance, financial cost | Void uncashed bets & refund; pay journaled cash-outs (ADR-005) | Required — Gate A |
 | OQ-12 | RNG certification path (hash-chain vs. certified RNG) per jurisdiction | May force a different outcome source | Hash-chain + drand salt; formula separable | Required — before Phase H, inform Phase C |
-| OQ-13 | House edge / target RTP | Core economics & certification | 3 % edge (97 % RTP) | Required — Gate B→C |
+| OQ-13 | House edge / target RTP | Core economics & certification | **Resolved 2026-10-10: 3 % edge, 97 % RTP** | Closed |
 | OQ-14 | Max multiplier M and max win per bet W (per currency) | Exposure, rules text | M = 10 000×; W = USD 10 000 equiv., set per currency | Required — Gate B→C |
 | OQ-17 | Auto cash-out tie rule (target = crash) | Rules text; RTP exactness | Tie goes to player | Required — Gate B→C |
-| OQ-18 | Manual cash-out pricing precision (0.01× vs 0.0001×) | Manual RTP drag up to ~1 % | Price at x10000 internally, display x100 | Required — Gate B→C |
+| OQ-18 | Manual cash-out pricing precision (0.01× vs 0.0001×) | Manual RTP drag up to ~1 % | **Resolved 2026-10-10: all multipliers stored as `*_x10000`; manual cash-outs priced at 0.0001×; display 2 dp** | Closed |
 | OQ-07 | Is "LUX ROCKET" trademark-cleared in target markets? | Branding rework risk | Assume clear; check before public launch | Required — before Phase G |
 
 ## 2. Commercial & operator

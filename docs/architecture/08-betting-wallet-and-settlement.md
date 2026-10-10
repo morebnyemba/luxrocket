@@ -4,7 +4,7 @@
 
 - Each session has `panels = ruleset.panels` (default 2) independent panels, indexed 0..N−1.
 - **At most one bet per panel per player per round** (DB unique constraint across sessions/tabs).
-- Per-panel state: stake, `bet_id`, acceptance status, `auto_cashout_x100`, cash-out request state, confirmed cash-out (`cashout_x100`, `payout_minor`), potential return (display only), settlement status, error/recovery state.
+- Per-panel state: stake, `bet_id`, acceptance status, `auto_cashout_x10000`, cash-out request state, confirmed cash-out (`cashout_x10000`, `payout_minor`), potential return (display only), settlement status, error/recovery state.
 - Panels share the round and crash point; nothing else. One panel's cash-out, rejection or error never changes the other's state.
 - Auto cash-out target is fixed at placement (v1). Changing it mid-flight is excluded to avoid a race with the coordinator's auto timer (OQ-22).
 - No autoplay/auto-bet in v1 (responsible-gambling concern; several regulators restrict autoplay; OQ-23).
@@ -144,10 +144,10 @@ sequenceDiagram
   G->>C: cash_out(stamped)
   C->>C: serialised with crash: FLYING ∧ received_at < crash_at ∧ bet ACTIVE ∧ not cashed
   alt accepted
-    C->>C: cashout_x100 = curve[received_at − launch_at], payout = min(floor(stake·k/100), max_win)
+    C->>C: cashout_x10000 = curve[received_at − launch_at], payout = min(floor(stake·k/10000), max_win)
     C->>J: CASHOUT_ACCEPTED (fenced, ≤10 ms batch)
     J-->>C: flushed
-    C-->>P: CASHOUT_ACCEPTED {bet_id, cashout_x100, payout}
+    C-->>P: CASHOUT_ACCEPTED {bet_id, cashout_x10000, payout}
     J-)MQ: relay (publisher confirms)
     MQ-)K: rt.events CASHOUT_ACCEPTED
     K->>K: dedupe event_id, recompute payout (must match), bet CASHED_OUT, ledger, wallet_tx CREDIT PENDING, outbox

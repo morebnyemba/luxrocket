@@ -89,6 +89,6 @@ flowchart LR
 | Gate | Before | Requires |
 |------|--------|----------|
 | Gate A | Any code | Doc 22 approval; approval-critical OQs answered or defaults accepted |
-| Gate B→C | Engine work on real rules | Ruleset defaults (OQ-13/14/17/18) accepted for development |
+| Gate B→C | Engine work on real rules | Ruleset defaults (OQ-14/17) accepted (OQ-13/18 decided) for development |
 | Gate E | Any external operator sandbox | Security review of launch/session/wallet code |
 | Gate RM (real money) | Per operator | Contract, licence evidence, lab certificate for the stream's ruleset, pen-test clear, DR test passed, approval_request four-eyes |

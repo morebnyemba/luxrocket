@@ -99,7 +99,7 @@ async def place_bet(req):                       # ASGI view
 `tx_phase1` (single transaction, `SELECT … FOR UPDATE` only on the session row):
 1. Session ACTIVE, `session_version` matches, mode matches stream mode.
 2. Operator LIVE/SANDBOX consistent with mode; `real_money_enabled` for REAL.
-3. Currency enabled; stake within `[min,max]`; `auto_cashout_x100` within `[101, max_multiplier]`.
+3. Currency enabled; stake within `[min,max]`; `auto_cashout_x10000` a multiple of 100 within `[10100, max_multiplier_x10000]`.
 4. Responsible-gaming flags from operator (e.g. `rg_blocked`) not set.
 5. Insert `bet(PENDING_DEBIT)` — unique constraints catch duplicates → return existing bet's current result.
 6. Atomic exposure increment (`max_win_minor` of this bet) — fails → `REJECTED(EXPOSURE_LIMIT)`.
