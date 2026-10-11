@@ -138,7 +138,7 @@ Base URL configured per operator. All requests signed (§3). All amounts are **s
 | `POST {base}/rollback` | Yes | 5 s |
 | `POST {base}/settle` | Optional (`send_settle_on_loss`) | 5 s |
 | `POST {base}/balance` | Optional (for in-game balance display) | 1 s |
-| `GET {base}/transactions/{transaction_id}` | Optional (speeds up unknown resolution) | 2 s |
+| `POST {base}/transactions/lookup` | Optional, **required for operator reconciliation** (`wallet/v1/lookup.*`) | 5 s |
 
 ### 6.1 Debit request
 ```json

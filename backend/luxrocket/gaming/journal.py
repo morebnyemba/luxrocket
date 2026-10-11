@@ -102,8 +102,11 @@ def _bet_by_ref(round_id: uuid.UUID, p: dict[str, Any]) -> Bet | None:
     qs = Bet.objects.select_for_update().filter(round_id=round_id)
     if p.get("bet_id"):
         return qs.filter(public_id=p["bet_id"]).first()
+    command_id = p.get("command_id")
+    if not command_id:
+        return None
     return qs.filter(
-        session__public_id=p.get("session_id", ""), client_command_id=p.get("command_id")
+        session__public_id=p.get("session_id", ""), client_command_id=str(command_id)
     ).first()
 
 

@@ -6,6 +6,8 @@ export type { WalletV1BalanceRequest } from "./wallet_v1_balance_request";
 export type { WalletV1BalanceResponse } from "./wallet_v1_balance_response";
 export type { WalletV1CreditRequest } from "./wallet_v1_credit_request";
 export type { WalletV1DebitRequest } from "./wallet_v1_debit_request";
+export type { WalletV1LookupRequest } from "./wallet_v1_lookup_request";
+export type { WalletV1LookupResponse } from "./wallet_v1_lookup_response";
 export type { WalletV1Response } from "./wallet_v1_response";
 export type { WalletV1RollbackRequest } from "./wallet_v1_rollback_request";
 export type { WsV1CashOut } from "./ws_v1_cash_out";

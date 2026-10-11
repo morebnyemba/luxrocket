@@ -123,6 +123,31 @@ class Ledger:
             ).fetchone()
             return bool(row and row[0] == 1)
 
+    def lookup(self, tx_ids: list[str]) -> list[dict[str, Any]]:
+        """Our record of each id (reconciliation endpoint)."""
+        out = []
+        with self.lock:
+            for tx_id in tx_ids:
+                row = self.db.execute(
+                    "SELECT amount, currency, response, tombstone FROM tx WHERE transaction_id=?",
+                    (tx_id,),
+                ).fetchone()
+                if row is None:
+                    out.append({"transaction_id": tx_id, "status": "NOT_FOUND"})
+                elif row[3]:
+                    out.append({"transaction_id": tx_id, "status": "VOIDED"})
+                else:
+                    status = json.loads(row[2]).get("status", "REJECTED")
+                    out.append(
+                        {
+                            "transaction_id": tx_id,
+                            "status": status,
+                            "amount": str(row[0]),
+                            "currency": row[1],
+                        }
+                    )
+        return out
+
     def events(self, type_: str | None = None) -> list[dict[str, Any]]:
         with self.lock:
             rows = self.db.execute(
@@ -235,7 +260,7 @@ class Verifier:
         return True
 
 
-OPS = {"debit", "credit", "rollback", "balance", "webhooks"}
+OPS = {"debit", "credit", "rollback", "balance", "webhooks", "transactions/lookup"}
 
 
 def make_handler(ledger: Ledger, verifier: Verifier, faults: Faults, prefix: str) -> type:
@@ -272,6 +297,9 @@ def make_handler(ledger: Ledger, verifier: Verifier, faults: Faults, prefix: str
                 req = json.loads(body)
             except ValueError:
                 self._send(400, {"error": "bad json"})
+                return
+            if op == "transactions/lookup":
+                self._send(200, {"transactions": ledger.lookup(req["transaction_ids"])})
                 return
             if op == "webhooks":
                 new = ledger.record_event(req)

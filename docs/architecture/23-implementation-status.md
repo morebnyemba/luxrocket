@@ -20,12 +20,13 @@ until the Gate RM requirements in doc 19 §5 are met.
 | Platform signing keys published at `/.well-known/luxrocket-keys.json` | ✅ | `core/views.py` |
 | Reference operator wallet (standalone, fault injection: latency, 5xx, lost responses) | ✅ `python -m luxrocket.wallet.simulator` / `make stack-seamless` | `wallet/simulator.py` |
 | Signed operator webhooks (`bet.settled`, `round.settled`, `transaction.needs_attention`): transactional outbox, deterministic event ids, retry schedule, delivery log in back-office | ✅ | `operators/webhooks.py` |
+| Reconciliation: internal sweep with safe auto-repair + discrepancy queue (mandatory resolution notes); operator reconciliation via batched lookup of our tx ids; `reconciliation.discrepancy` webhook | ✅ `make reconcile` | `wallet/reconciliation.py` (doc 08 §8) |
 | Wallet conformance runner (operators must pass before go-live) | ✅ `manage.py wallet_conformance` / `make wallet-conformance` | `wallet/conformance.py` |
 | Double-entry ledger; DB triggers make it append-only and reject unbalanced journals | ✅ | `wallet/ledger.py`, `wallet/migrations/0002_ledger_integrity.py` |
 | Player game: two panels, live multiplier, cash-out, history, rules/RTP, in-browser round verification, reconnect/resync, Three.js journey | ✅ | `apps/game` |
 | Interim back-office (read-only financial views) | ✅ Django admin at `/django-admin/` | `*/admin.py` |
 | Money invariants checker | ✅ `make invariants` | `gaming/invariants.py` |
-| Tests | ✅ 94 Django, 28 Phoenix, 16 game-core, 4 multi-browser E2E | CI job `e2e` runs the full stack |
+| Tests | ✅ 107 Django, 28 Phoenix, 16 game-core, 4 multi-browser E2E | CI job `e2e` runs the full stack |
 | One-command sandbox stack | ✅ `make stack` | `infra/compose/docker-compose.yml` |
 
 ## Deliberate interim deviations (tracked)
@@ -42,7 +43,7 @@ until the Gate RM requirements in doc 19 §5 are met.
 | Platform admin & operator portal (Next.js) | Django admin (read-only financials) | Phase F. |
 | Staff MFA, four-eyes approvals, hash-chained audit log | Not yet | Phase F/G. |
 | Seamless wallet adapter on aiohttp workers | Synchronous `httpx` pooled client inside the existing workers | Same contract and semantics; switch to async when wallet-call concurrency (not correctness) becomes the bottleneck. REAL sessions additionally require `real_money_enabled`, LIVE status and a seamless wallet — still gated by Gate RM (doc 19 §5). |
-| Webhook types `reconciliation.discrepancy`, `session.revoked`, `game.*`, `credential.expiring` (doc 09 §7) | Not yet | Same outbox; add with the reconciliation job and the portal. |
+| Webhook types `session.revoked`, `game.*`, `credential.expiring` (doc 09 §7) | Not yet | Same outbox; add with the reconciliation job and the portal. |
 | Phoenix clustering, BetShard scaling | Single node | Load tests (doc 16 §7) decide. |
 
 ## Run it
@@ -58,4 +59,5 @@ make demo-launch    # prints a launch link (acts as the operator)
 open http://localhost:8000/demo/operator   # embedded via the SDK (postMessage handshake)
 make e2e            # multi-browser end-to-end tests
 make invariants     # money-correctness checks
+make reconcile      # reconciliation now (also runs in the workers every 5 min / hourly)
 ```

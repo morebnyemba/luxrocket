@@ -227,4 +227,20 @@ def run(
         value = client.balance({"player_id": player_id, "currency": currency}, timeout_ms)
         return None if value is not None else "no valid balance response"
 
+    @check("transaction lookup reports applied, rejected and voided ids (optional)", required=False)
+    def _lookup() -> str | None:
+        ok = probe.debit(stake)
+        probe.call("debit", ok)
+        nsf = probe.debit(10**17)
+        probe.call("debit", nsf)
+        voided = probe.debit(stake)
+        probe.call("rollback", probe.rollback(voided))
+        ids = [ok["transaction_id"], nsf["transaction_id"], voided["transaction_id"]]
+        found = client.lookup(ids, timeout_ms)
+        if found is None:
+            return "no valid lookup response (operator reconciliation will be unavailable)"
+        got = [found.get(i, {}).get("status") for i in ids]
+        want = ["OK", "REJECTED", "VOIDED"]
+        return None if got == want else f"expected {want}, got {got}"
+
     return report

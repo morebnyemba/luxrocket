@@ -29,7 +29,9 @@ SCHEMAS = {
     "credit": "wallet/v1/credit.request.schema.json",
     "rollback": "wallet/v1/rollback.request.schema.json",
     "balance": "wallet/v1/balance.request.schema.json",
+    "transactions/lookup": "wallet/v1/lookup.request.schema.json",
 }
+LOOKUP_RESPONSE_SCHEMA = "wallet/v1/lookup.response.schema.json"
 RESPONSE_SCHEMA = "wallet/v1/response.schema.json"
 BALANCE_RESPONSE_SCHEMA = "wallet/v1/balance.response.schema.json"
 
@@ -101,6 +103,17 @@ class SeamlessClient:
         if doc["currency"] != payload["currency"]:
             return None
         return int(doc["balance"])
+
+    def lookup(self, tx_ids: list[str], timeout_ms: int) -> dict[str, dict[str, Any]] | None:
+        """Operator's view of our transactions, or None if the endpoint is missing or failing."""
+        try:
+            resp = self._post("transactions/lookup", {"transaction_ids": tx_ids}, timeout_ms)
+        except httpx.HTTPError:
+            return None
+        doc = _json(resp.content) if resp.status_code == 200 else None
+        if doc is None or contracts.errors(LOOKUP_RESPONSE_SCHEMA, doc):
+            return None
+        return {t["transaction_id"]: t for t in doc["transactions"]}
 
 
 def _transport_code(exc: httpx.HTTPError) -> str:

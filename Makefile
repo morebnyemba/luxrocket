@@ -4,7 +4,7 @@ COMPOSE := docker compose -f infra/compose/docker-compose.yml
 # Random per-checkout secrets for the local stack (git-ignored). Delete it and run
 # `docker compose ... down -v` to rotate them.
 STACK_ENV := .demo/stack.env
-.PHONY: help up down install generate vectors test test-backend test-realtime test-frontend lint images stack stack-seamless stack-down wallet-conformance demo-launch invariants e2e
+.PHONY: help up down install generate vectors test test-backend test-realtime test-frontend lint images stack stack-seamless stack-down wallet-conformance reconcile demo-launch invariants e2e
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -75,6 +75,9 @@ stack-down: ## Stop the full stack
 
 demo-launch: ## Print a sandbox launch URL (acts as the operator; PLAYER=name)
 	@cd backend && uv run python scripts/demo_operator.py --key $(or $(KEY),../.demo/operator.key) --player $(or $(PLAYER),demo-$$RANDOM)
+
+reconcile: ## Run reconciliation now (internal + every seamless operator); fails if items are open
+	$(COMPOSE) --profile app exec api python manage.py reconcile --internal --operator all
 
 invariants: ## Check money-correctness invariants against the database
 	cd backend && set -a && { [ -f ../$(STACK_ENV) ] && . ../$(STACK_ENV) || true; } && set +a && DJANGO_DEBUG=1 uv run python manage.py check_invariants

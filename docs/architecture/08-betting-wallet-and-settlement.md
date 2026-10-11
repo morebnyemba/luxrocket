@@ -237,6 +237,25 @@ sequenceDiagram
   R->>A: daily reconciliation report per operator
 ```
 
+**As built** (`backend/luxrocket/wallet/reconciliation.py`, scheduled in the workers, `manage.py reconcile`):
+
+| Check (internal, every 5 min, 2-min grace) | Action |
+|---|---|
+| Bet stuck in `PENDING_DEBIT` (process died around the debit call) | **Auto:** mark debit uncertain, release exposure, roll back |
+| `DEBIT_UNKNOWN` without a rollback job | **Auto:** enqueue rollback |
+| `CASHED_OUT` without a credit job, settlement consistent | **Auto:** enqueue credit (same deterministic tx id) — else OPEN |
+| Excluded/voided bet with a recorded debit and no rollback | **Auto** if the refund decision is in the ledger — else OPEN |
+| Settlement PENDING although its credit/rollback succeeded | **Auto:** confirm (+ `bet.settled` webhook) |
+| Live bet in a finished round · wallet tx / settlement `NEEDS_ATTENTION` · unverified outcome · clearing accounts not zero for a finished bet | OPEN (critical) |
+
+Operator reconciliation (hourly, incremental by `updated_at`, 10-min lag) does **not** pull a day file: it asks
+the operator's optional `POST {base}/transactions/lookup` about *our* terminal transaction ids in batches of 200
+(every id originates with us, so this covers both directions with no day-boundary ambiguity, and it confirms
+tombstoned debits stay `VOIDED`). Ours SUCCEEDED vs theirs not `OK` → `MISSING_AT_OPERATOR`; amount/currency
+differs → `AMOUNT_MISMATCH`; a debit we recorded as rejected that they applied → **auto** rollback (refund).
+A failing lookup marks the run `UNAVAILABLE` and the same window is retried. New OPEN items with an operator
+emit `reconciliation.discrepancy`. One OPEN item per (kind, subject) however many runs see it.
+
 Resolution of open items is a portal/admin workflow with mandatory notes; any monetary correction is a new `ADJUSTMENT_CREDIT` (four-eyes approved), never an edit.
 
 ## 9. Exposure control

@@ -2,7 +2,8 @@
 
 import logging
 import time
-from datetime import timedelta
+import uuid
+from datetime import datetime, timedelta
 
 from django.db import transaction
 from django.utils import timezone
@@ -47,7 +48,7 @@ def process_pending(limit: int = 100) -> int:
     return done
 
 
-def _process(tx_id: object) -> bool:
+def _process(tx_id: uuid.UUID) -> bool:
     tx = WalletTransaction.objects.select_related(
         "bet", "bet__player", "bet__session", "bet__session__operator"
     ).get(pk=tx_id)
@@ -123,7 +124,7 @@ def _on_success(tx: WalletTransaction, bet: Bet, result: WalletResult) -> None:
     emit("settlement.confirmed", {**payload, "kind": "REFUND"})
 
 
-def _confirm(bet: Bet, now: object) -> None:
+def _confirm(bet: Bet, now: datetime) -> None:
     settlement = Settlement.objects.select_for_update().filter(bet=bet).first()
     if settlement is None or settlement.status == Settlement.Status.CONFIRMED:
         return
