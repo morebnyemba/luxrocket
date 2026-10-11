@@ -40,7 +40,14 @@ services:
   # One-shot: Django migrations and the demo operator (key written to ./.demo).
   migrate:
     <<: *backend
-    command: ["sh", "-c", "python manage.py migrate --noinput && python manage.py seed_demo --key-out /demo/operator.key --origin http://localhost:8000"]
+    # DEMO_WALLET_URL empty: built-in simulated wallet. `make stack-seamless` routes the demo
+    # operator to the reference Seamless Wallet v1 server below over signed HTTP instead.
+    command: ["sh", "-c", "python manage.py migrate --noinput && python manage.py seed_demo --key-out /demo/operator.key --origin http://localhost:8000 --wallet-url \"$$DEMO_WALLET_URL\""]
+    environment:
+      DJANGO_DEBUG: "1"
+      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,api"
+      POSTGRES_HOST: postgres
+      DEMO_WALLET_URL: ${DEMO_WALLET_URL:-}
     volumes: ["../../.demo:/demo"]
     # Local tooling only: writes the demo operator key into the host-mounted ./.demo directory.
     user: root
@@ -57,6 +64,24 @@ services:
     <<: *backend
     command: ["python", "manage.py", "run_workers"]
     depends_on: { migrate: { condition: service_completed_successfully } }
+    profiles: ["app"]
+
+  # Reference operator wallet (LUX Seamless Wallet v1) with optional fault injection.
+  wallet-sim:
+    build: { context: ../.., dockerfile: backend/Dockerfile }
+    command:
+      - python
+      - -m
+      - luxrocket.wallet.simulator
+      - --host=0.0.0.0
+      - --port=8090
+      - --prefix=/wallet
+      - --keys-url=http://api:8000/.well-known/luxrocket-keys.json
+      - --lose-rate=${WALLET_SIM_LOSE_RATE:-0}
+      - --fail-rate=${WALLET_SIM_FAIL_RATE:-0}
+      - --latency-ms=${WALLET_SIM_LATENCY_MS:-20}
+    ports: ["127.0.0.1:8090:8090"]
+    depends_on: [api]
     profiles: ["app"]
 
   realtime:

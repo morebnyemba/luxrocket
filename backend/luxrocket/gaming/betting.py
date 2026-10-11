@@ -26,6 +26,7 @@ from luxrocket.wallet.models import WalletTransaction, WalletTxAttempt
 log = logging.getLogger(__name__)
 
 TERMINAL_ROUND_STATES = {"FLYING", "CRASHED", "VOIDED"}
+DEBIT_HEADROOM_MS = 100
 
 
 @dataclass(frozen=True)
@@ -167,12 +168,14 @@ def place_bet(req: dict[str, Any]) -> BetResult:
             amount_minor=stake,
             currency=session.currency,
         )
-        mode = session.mode
 
     # ---- External call: wallet debit (no transaction open) -------------------------------
+    # A debit answered after the cut-off cannot be admitted anyway: never wait past it, and
+    # keep headroom so we answer Phoenix (whose own timeout ends at the cut-off) in time.
+    remaining_ms = max(int(deadline_ms - time.time() * 1000) - DEBIT_HEADROOM_MS, 50)
     started = time.monotonic()
     try:
-        result = adapter_for(mode).debit(tx)
+        result = adapter_for(session).debit(tx, timeout_ms=remaining_ms)
     except Exception:  # an adapter crash is an unknown outcome, never a failure
         log.exception("wallet debit raised; treating as UNKNOWN")
         result = WalletResult("UNKNOWN", "ADAPTER_ERROR")

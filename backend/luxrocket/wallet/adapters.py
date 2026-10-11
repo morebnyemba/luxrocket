@@ -6,8 +6,9 @@ debit succeeds and tombstones that id, credits always succeed.
 """
 
 import random
+import uuid
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 from django.conf import settings
 from django.db import transaction
@@ -26,10 +27,10 @@ class WalletResult:
 
 
 class WalletAdapter(Protocol):
-    def debit(self, tx: WalletTransaction) -> WalletResult: ...
+    def debit(self, tx: WalletTransaction, timeout_ms: int | None = None) -> WalletResult: ...
     def credit(self, tx: WalletTransaction) -> WalletResult: ...
-    def rollback(self, tx: WalletTransaction, debit_tx_id: object) -> WalletResult: ...
-    def balance(self, tx_or_bet: object) -> int | None: ...
+    def rollback(self, tx: WalletTransaction, debit_tx_id: uuid.UUID) -> WalletResult: ...
+    def balance(self, session: Any) -> int | None: ...
 
 
 class SandboxWalletAdapter:
@@ -41,7 +42,7 @@ class SandboxWalletAdapter:
             operator_id=bet.operator_id, player_id=bet.player_id, currency=bet.currency
         )
 
-    def debit(self, tx: WalletTransaction) -> WalletResult:
+    def debit(self, tx: WalletTransaction, timeout_ms: int | None = None) -> WalletResult:
         with transaction.atomic():
             account = self._account(tx)
             existing = SandboxWalletEntry.objects.filter(transaction_id=tx.id).first()
@@ -92,7 +93,7 @@ class SandboxWalletAdapter:
             )
             return WalletResult("OK", balance_minor=account.balance_minor + tx.amount_minor)
 
-    def rollback(self, tx: WalletTransaction, debit_tx_id: object) -> WalletResult:
+    def rollback(self, tx: WalletTransaction, debit_tx_id: uuid.UUID) -> WalletResult:
         with transaction.atomic():
             account = self._account(tx)
             existing = SandboxWalletEntry.objects.filter(transaction_id=tx.id).first()
@@ -124,12 +125,9 @@ class SandboxWalletAdapter:
             )
             return WalletResult("OK", balance_minor=account.balance_minor + refunded)
 
-    def balance(self, bet: object) -> int | None:
-        from luxrocket.gaming.models import Bet
-
-        assert isinstance(bet, Bet)
+    def balance(self, session: Any) -> int | None:
         acct = SandboxWalletAccount.objects.filter(
-            operator_id=bet.operator_id, player_id=bet.player_id, currency=bet.currency
+            operator_id=session.operator_id, player_id=session.player_id, currency=session.currency
         ).first()
         return acct.balance_minor if acct else None
 
@@ -140,8 +138,20 @@ class SandboxWalletAdapter:
         return WalletResult("REJECTED", entry.result, account.balance_minor)
 
 
-def adapter_for(mode: str) -> WalletAdapter:
-    if mode == "SANDBOX":
+def adapter_for(session: Any) -> WalletAdapter:
+    """Route by the wallet snapshotted on the session, never the operator's current setting."""
+    if session.wallet_kind == "SIMULATED":
+        if session.mode != "SANDBOX":
+            raise RuntimeError("simulated wallet can never carry REAL money")
         return SandboxWalletAdapter()
-    # Real-money seamless adapter (aiohttp) is gated behind real-money enablement (FR-044).
-    raise NotImplementedError("REAL mode wallet adapter is not enabled in this build")
+    if session.wallet_kind == "SEAMLESS_V1":
+        from luxrocket.wallet.seamless import SeamlessClient, SeamlessWalletAdapter
+
+        operator = session.operator
+        # Prefer the operator's current URL (endpoint rotation), but never lose the wallet that
+        # took the stake if the operator has since been moved off seamless routing.
+        url = operator.wallet_base_url if operator.wallet_kind == "SEAMLESS_V1" else ""
+        return SeamlessWalletAdapter(
+            SeamlessClient(url or session.wallet_base_url), operator.wallet_debit_timeout_ms
+        )
+    raise RuntimeError(f"unknown wallet kind {session.wallet_kind!r}")

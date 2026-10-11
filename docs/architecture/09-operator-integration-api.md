@@ -119,7 +119,7 @@ Exceeded limits: `429` + `Retry-After`. Limits are per operator, configurable by
 |------|--------|---------|
 | 400 | `INVALID_REQUEST` | Schema violation (`errors[]` lists JSON pointers) |
 | 401 | `INVALID_SIGNATURE`, `TIMESTAMP_OUT_OF_WINDOW`, `NONCE_REUSED`, `UNKNOWN_KEY` | Auth failure (no detail beyond code) |
-| 403 | `OPERATOR_SUSPENDED`, `REAL_MONEY_DISABLED`, `JURISDICTION_NOT_PERMITTED`, `CURRENCY_NOT_ENABLED` | Policy |
+| 403 | `OPERATOR_SUSPENDED`, `REAL_MONEY_DISABLED`, `WALLET_NOT_CONFIGURED`, `JURISDICTION_NOT_PERMITTED`, `CURRENCY_NOT_ENABLED` | Policy |
 | 404 | `NOT_FOUND` | Unknown *or foreign-tenant* resource |
 | 409 | `IDEMPOTENCY_KEY_REUSED`, `STATE_CONFLICT` | |
 | 422 | `PLAYER_RESTRICTED`, `CONFIG_NOT_PERMITTED` | |
@@ -190,12 +190,36 @@ Same envelope plus `"type": "WIN"`, `"multiplier_x10000": 23456`, `"amount"` = p
   }
 }
 ```
+### 6.4a Balance (optional)
+`POST {base}/balance` with `{ "player_id", "currency", "session_id"?, "operator_session_token"? }` →
+`{ "status": "OK", "balance": "<minor units>", "currency": "USD" }`
+(`contracts/wallet/v1/balance.*.schema.json`). Used only for the in-game HUD; failures hide the figure
+and never block play.
+
 ### 6.5 Required operator semantics
 1. Same `transaction_id` ⇒ same effect once; replays return the original result with `duplicate: true`.
 2. `credit` and `rollback` MUST succeed for any previously debited bet regardless of session state or player restrictions (`SESSION_EXPIRED`/`PLAYER_BLOCKED` are not valid reasons to reject them).
 3. `rollback` of an unknown `transaction_id` ⇒ `OK` and the operator records a tombstone so a later `debit` with that id is rejected.
 4. HTTP 2xx with unparseable body, any 5xx, or timeout are treated by us as *unknown* — never as rejection.
 5. Business rejection is HTTP 200 with `status: REJECTED` and a `code`.
+6. The response MUST echo our `transaction_id`; a response for a different id, a 3xx, or a body
+   that fails the response schema is treated as *unknown*.
+
+### 6.6 How the platform calls the wallet (as built)
+- Requests are LR1-signed (§3) with the platform key; verify against `/.well-known/luxrocket-keys.json`.
+- Debit timeout = min(operator setting, platform cap 750 ms, time left before the betting cut-off − 100 ms).
+  A debit that cannot be confirmed before the cut-off becomes *unknown* and is rolled back.
+- Credits and rollbacks retry with backoff (1 s … 15 min, then hourly) for 72 h, then `NEEDS_ATTENTION`.
+- Each session snapshots its wallet routing at creation, so credits and rollbacks always reach the wallet
+  that took the stake, even if the operator is reconfigured mid-session.
+- Plain `http` wallet URLs are refused outside development (`WALLET_ALLOW_HTTP`).
+
+### 6.7 Reference wallet and conformance
+- `python -m luxrocket.wallet.simulator --keys-url …/.well-known/luxrocket-keys.json [--lose-rate …]` runs a
+  standalone reference implementation of this contract (Python + `cryptography` only) with fault injection.
+- `manage.py wallet_conformance --base-url https://… --player-id <test player>` runs signed calls that check
+  idempotent debit/credit/rollback, tombstoning, `INSUFFICIENT_FUNDS`, and signature enforcement. Passing it
+  is a precondition for `real_money_enabled`.
 
 ## 7. Webhooks (we notify the operator)
 

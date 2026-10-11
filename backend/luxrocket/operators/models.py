@@ -5,6 +5,13 @@ from django.db import models
 from luxrocket.core.ids import public_id, uuid7
 
 
+class WalletKind(models.TextChoices):
+    """Where a session's money moves (snapshotted onto each session at creation)."""
+
+    SIMULATED = "SIMULATED"  # built-in sandbox wallet; SANDBOX sessions only
+    SEAMLESS_V1 = "SEAMLESS_V1"  # operator implements LUX Seamless Wallet v1 (doc 09 §6)
+
+
 class Operator(models.Model):
     class Status(models.TextChoices):
         ONBOARDING = "ONBOARDING"
@@ -19,7 +26,26 @@ class Operator(models.Model):
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.SANDBOX)
     real_money_enabled = models.BooleanField(default=False)
     stream_slug = models.CharField(max_length=64, default="global")
+    wallet_kind = models.CharField(
+        max_length=16, choices=WalletKind.choices, default=WalletKind.SIMULATED
+    )
+    # Base URL of the operator's wallet ({base}/debit, /credit, /rollback, /balance).
+    wallet_base_url = models.CharField(max_length=500, blank=True)
+    wallet_debit_timeout_ms = models.PositiveIntegerField(default=900)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def clean(self) -> None:
+        from django.core.exceptions import ValidationError
+
+        from luxrocket.wallet.seamless import WalletConfigError, validate_base_url
+
+        if self.wallet_kind == WalletKind.SEAMLESS_V1:
+            try:
+                validate_base_url(self.wallet_base_url)
+            except WalletConfigError as exc:
+                raise ValidationError({"wallet_base_url": str(exc)}) from exc
+        elif self.real_money_enabled:
+            raise ValidationError({"wallet_kind": "real money requires a seamless wallet"})
 
     def save(self, *args: object, **kwargs: object) -> None:
         if not self.public_id:

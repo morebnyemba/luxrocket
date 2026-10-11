@@ -4,7 +4,7 @@ COMPOSE := docker compose -f infra/compose/docker-compose.yml
 # Random per-checkout secrets for the local stack (git-ignored). Delete it and run
 # `docker compose ... down -v` to rotate them.
 STACK_ENV := .demo/stack.env
-.PHONY: help up down install generate vectors test test-backend test-realtime test-frontend lint images stack stack-down demo-launch invariants e2e
+.PHONY: help up down install generate vectors test test-backend test-realtime test-frontend lint images stack stack-seamless stack-down wallet-conformance demo-launch invariants e2e
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -61,6 +61,14 @@ stack: $(STACK_ENV) ## Build and run the full sandbox stack (game on :3000, API 
 	  for i in $$(seq 1 60); do curl -fs $$url >/dev/null && break; sleep 2; done; \
 	  curl -fs $$url >/dev/null || { echo "$$url not healthy"; exit 1; }; done
 	@echo "Stack ready. Get a launch link: make demo-launch  ·  embed demo: http://localhost:8000/demo/operator"
+
+stack-seamless: $(STACK_ENV) ## Full stack with the demo operator on the reference Seamless Wallet v1 (signed HTTP)
+	DEMO_WALLET_URL=http://wallet-sim:8090/wallet $(MAKE) stack
+	$(COMPOSE) --profile app up -d wallet-sim
+
+wallet-conformance: ## Run the Seamless Wallet v1 conformance suite (URL=..., default: the reference wallet)
+	$(COMPOSE) --profile app exec api python manage.py wallet_conformance \
+	  --base-url $(or $(URL),http://wallet-sim:8090/wallet) --player-id $(or $(PLAYER),conformance-$$RANDOM)
 
 stack-down: ## Stop the full stack
 	$(COMPOSE) --profile app down

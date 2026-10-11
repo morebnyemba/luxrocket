@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.luxrocket.example/wallet/v1/balance.request.schema.json",
+  "title": "Wallet balance request (platform -> operator, optional endpoint)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "player_id",
+    "currency"
+  ],
+  "properties": {
+    "player_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "operator_session_token": {
+      "type": "string",
+      "maxLength": 512
+    }
+  }
+}

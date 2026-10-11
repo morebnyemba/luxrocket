@@ -1,5 +1,6 @@
 """Game API /game/v1 — called by the embedded game with an in-memory bearer token (doc 05 §2.1)."""
 
+import logging
 from collections.abc import Callable
 from functools import wraps
 from typing import Any
@@ -13,7 +14,9 @@ from luxrocket.api.operator_views import bet_view, round_view
 from luxrocket.core.errors import problem
 from luxrocket.gaming import sessions
 from luxrocket.gaming.models import Bet, GameRound, GameSession
-from luxrocket.wallet.models import SandboxWalletAccount
+from luxrocket.wallet.adapters import adapter_for
+
+log = logging.getLogger(__name__)
 
 
 def authenticated(view: Callable[..., HttpResponse]) -> Callable[..., HttpResponse]:
@@ -30,12 +33,13 @@ def authenticated(view: Callable[..., HttpResponse]) -> Callable[..., HttpRespon
 
 
 def _balance(session: GameSession) -> str | None:
-    if session.mode != "SANDBOX":
+    """Best effort: a missing balance hides the HUD figure, it never blocks play."""
+    try:
+        value = adapter_for(session).balance(session)
+    except Exception:
+        log.exception("balance lookup failed for %s", session.public_id)
         return None
-    acct = SandboxWalletAccount.objects.filter(
-        operator=session.operator, player=session.player, currency=session.currency
-    ).first()
-    return str(acct.balance_minor) if acct else None
+    return str(value) if value is not None else None
 
 
 @csrf_exempt

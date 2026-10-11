@@ -27,8 +27,15 @@ class JurisdictionInline(admin.TabularInline):  # type: ignore[type-arg]
 
 @admin.register(Operator)
 class OperatorAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
-    list_display = ("legal_name", "public_id", "status", "real_money_enabled", "stream_slug")
-    list_filter = ("status", "real_money_enabled")
+    list_display = (
+        "legal_name",
+        "public_id",
+        "status",
+        "real_money_enabled",
+        "wallet_kind",
+        "stream_slug",
+    )
+    list_filter = ("status", "real_money_enabled", "wallet_kind")
     search_fields = ("legal_name", "public_id")
     readonly_fields = ("public_id", "real_money_enabled")  # real money only via approval flow
     inlines = [LimitInline, DomainInline, JurisdictionInline]

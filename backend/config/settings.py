@@ -105,6 +105,8 @@ LOGGING = {
     "formatters": {"plain": {"format": "%(asctime)s %(levelname)s %(name)s %(message)s"}},
     "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "plain"}},
     "root": {"handlers": ["console"], "level": env("LOG_LEVEL", "INFO")},
+    # Per-request client logs would echo every wallet call; outcomes are recorded as attempts.
+    "loggers": {"httpx": {"level": "WARNING"}, "httpcore": {"level": "WARNING"}},
 }
 
 # --- LUX ROCKET platform settings ------------------------------------------------------------
@@ -125,6 +127,12 @@ def _dev_key(purpose: str) -> str:
 GAME_TOKEN_PRIVATE_KEY_B64 = env(
     "GAME_TOKEN_PRIVATE_KEY_B64", _dev_key("game-session-token") if DEBUG else None
 )
+# Ed25519 key signing our calls to operators (wallet, webhooks); public half at
+# /.well-known/luxrocket-keys.json (doc 09 §3).
+PLATFORM_SIGNING_KEY_B64 = env(
+    "PLATFORM_SIGNING_KEY_B64", _dev_key("platform-signing") if DEBUG else None
+)
+PLATFORM_SIGNING_KID = env("PLATFORM_SIGNING_KID", "plat_dev" if DEBUG else None)
 GAME_TOKEN_TTL_SECONDS = int(env("GAME_TOKEN_TTL_SECONDS", "900"))
 LAUNCH_TOKEN_TTL_SECONDS = int(env("LAUNCH_TOKEN_TTL_SECONDS", "60"))
 WS_TICKET_TTL_SECONDS = int(env("WS_TICKET_TTL_SECONDS", "30"))
@@ -144,6 +152,13 @@ RULESET = {
     "max_multiplier_x10000": 100_000_000,
     "panels": 2,
 }
+# Seamless wallet v1 timeouts (doc 09 §6). Debit is per-operator, capped here below Phoenix's
+# place-bet timeout (900 ms) so a slow wallet becomes our UNKNOWN, not Phoenix's.
+WALLET_DEBIT_TIMEOUT_MAX_MS = int(env("WALLET_DEBIT_TIMEOUT_MAX_MS", "750"))
+# Plain-http operator wallets only for local development and tests; production requires https.
+WALLET_ALLOW_HTTP = env("WALLET_ALLOW_HTTP", "1" if DEBUG else "0") == "1"
+WALLET_TIMEOUT_MS = int(env("WALLET_TIMEOUT_MS", "5000"))
+WALLET_BALANCE_TIMEOUT_MS = int(env("WALLET_BALANCE_TIMEOUT_MS", "1000"))
 SANDBOX_DEBIT_UNKNOWN_RATE = float(env("SANDBOX_DEBIT_UNKNOWN_RATE", "0"))
 CONTRACTS_DIR = env("CONTRACTS_DIR", str(BASE_DIR.parent / "contracts"))
 DEMO_PAGES = env("DEMO_PAGES", "1" if DEBUG else "0") == "1"

@@ -1,11 +1,9 @@
 """Operator request signing, scheme LR1 (doc 09 §3, ADR-010).
 
-String to sign: "LR1\\n{METHOD}\\n{path_with_query}\\n{timestamp}\\n{nonce}\\n{sha256_hex(body)}".
+Verifies operator -> platform calls (string to sign in `luxrocket.core.lr1`).
 Signature header: "ed25519=<base64url>". Only the operator's public key is stored.
 """
 
-import base64
-import hashlib
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -16,6 +14,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from luxrocket.core.lr1 import b64url_decode, string_to_sign
 from luxrocket.operators.models import Operator, OperatorCredential, RequestNonce
 
 MAX_SKEW_SECONDS = 300
@@ -32,15 +31,6 @@ class SignatureError(Exception):
 class VerifiedOperator:
     operator: Operator
     kid: str
-
-
-def string_to_sign(method: str, path: str, timestamp: str, nonce: str, body: bytes) -> bytes:
-    digest = hashlib.sha256(body).hexdigest()
-    return f"LR1\n{method.upper()}\n{path}\n{timestamp}\n{nonce}\n{digest}".encode()
-
-
-def _b64url_decode(value: str) -> bytes:
-    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
 
 
 def verify_request(
@@ -73,7 +63,7 @@ def verify_request(
         raise SignatureError("INVALID_SIGNATURE")
     try:
         Ed25519PublicKey.from_public_bytes(bytes(cred.public_key)).verify(
-            _b64url_decode(sig_b64), string_to_sign(method, path, timestamp, nonce, body)
+            b64url_decode(sig_b64), string_to_sign(method, path, timestamp, nonce, body)
         )
     except (InvalidSignature, ValueError) as exc:
         raise SignatureError("INVALID_SIGNATURE") from exc

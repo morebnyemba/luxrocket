@@ -11,7 +11,13 @@ from django.utils import timezone
 from luxrocket.core.tokens import new_token, token_hash
 from luxrocket.gaming import session_tokens
 from luxrocket.gaming.models import GameSession, LaunchToken, PlayerRef, WsTicket
-from luxrocket.operators.models import Market, Operator, OperatorCurrencyLimit, OperatorJurisdiction
+from luxrocket.operators.models import (
+    Market,
+    Operator,
+    OperatorCurrencyLimit,
+    OperatorJurisdiction,
+    WalletKind,
+)
 from luxrocket.wallet.models import SandboxWalletAccount
 
 
@@ -38,10 +44,15 @@ def create_session(operator: Operator, payload: dict[str, Any]) -> CreatedSessio
 
     if operator.status in (Operator.Status.SUSPENDED, Operator.Status.TERMINATED):
         raise SessionError("OPERATOR_SUSPENDED")
+    wallet_kind = operator.wallet_kind
     if mode == "REAL" and not (
-        operator.real_money_enabled and operator.status == Operator.Status.LIVE
+        operator.real_money_enabled
+        and operator.status == Operator.Status.LIVE
+        and wallet_kind == WalletKind.SEAMLESS_V1
     ):
         raise SessionError("REAL_MONEY_DISABLED")
+    if wallet_kind == WalletKind.SEAMLESS_V1 and not operator.wallet_base_url:
+        raise SessionError("WALLET_NOT_CONFIGURED")
     market = Market.objects.filter(country_code=country).first()
     if market is None or not market.allows(mode):
         raise SessionError("JURISDICTION_NOT_PERMITTED")
@@ -67,13 +78,16 @@ def create_session(operator: Operator, payload: dict[str, Any]) -> CreatedSessio
             locale=payload.get("locale", "en"),
             mode=mode,
             stream_slug=operator.stream_slug,
+            wallet_kind=wallet_kind,
+            wallet_base_url=operator.wallet_base_url,
+            operator_session_token=payload.get("operator_session_token", ""),
             expires_at=now + timedelta(hours=settings.SESSION_MAX_HOURS),
         )
         expires = now + timedelta(seconds=settings.LAUNCH_TOKEN_TTL_SECONDS)
         LaunchToken.objects.create(
             token_hash=token_hash(token), session=session, expires_at=expires
         )
-        if mode == "SANDBOX":
+        if wallet_kind == WalletKind.SIMULATED:
             SandboxWalletAccount.objects.get_or_create(
                 operator=operator,
                 player=player,

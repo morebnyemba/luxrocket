@@ -44,6 +44,11 @@ class GameSession(models.Model):
     locale = models.CharField(max_length=16, default="en")
     mode = models.CharField(max_length=8, choices=Mode.choices)
     stream_slug = models.CharField(max_length=64)
+    # Snapshot of the operator's wallet routing: credits and rollbacks must reach the wallet
+    # that took the debit even if the operator is reconfigured mid-session.
+    wallet_kind = models.CharField(max_length=16, default="SIMULATED")
+    wallet_base_url = models.CharField(max_length=500, blank=True)
+    operator_session_token = models.CharField(max_length=512, blank=True)
     status = models.CharField(max_length=8, choices=Status.choices, default=Status.PENDING)
     session_version = models.PositiveIntegerField(default=1)
     expires_at = models.DateTimeField()

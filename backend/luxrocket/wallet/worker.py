@@ -47,11 +47,13 @@ def process_pending(limit: int = 100) -> int:
 
 
 def _process(tx_id: object) -> bool:
-    tx = WalletTransaction.objects.select_related("bet", "bet__session").get(pk=tx_id)
+    tx = WalletTransaction.objects.select_related(
+        "bet", "bet__player", "bet__session", "bet__session__operator"
+    ).get(pk=tx_id)
     if tx.status not in (WalletTransaction.Status.PENDING, WalletTransaction.Status.UNKNOWN):
         return False
     bet = tx.bet
-    adapter = adapter_for(bet.session.mode)
+    adapter = adapter_for(bet.session)
     started = time.monotonic()
     try:
         if tx.type == WalletTransaction.Type.CREDIT:
