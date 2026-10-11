@@ -2,9 +2,10 @@
 
 Embeddable, multiplayer rocket-crash game and B2B game-supplier platform.
 
-> **Status:** architecture approved (Gate A, 2026-10-10). Repository scaffold in place;
-> Phase B (visual prototype) is next. Nothing here is production-ready or certified, and
-> real-money operation is disabled by design until its own gates pass.
+> **Status:** sandbox mode works end to end — operator launch, shared real-time rounds,
+> two-panel betting, cash-outs, wallet settlement and in-browser verification. See
+> [implementation status](docs/architecture/23-implementation-status.md). Nothing here is
+> certified, and real-money operation is disabled by design until its gates pass.
 
 Start with [`docs/architecture/`](docs/architecture/README.md) — every design decision lives
 there, and code must not contradict an accepted ADR.
@@ -34,7 +35,19 @@ tested against `contracts/math/lr-crash-1/vectors.json`.
 - Erlang/OTP 27 and Elixir 1.18
 - Docker (for Postgres, Redis, RabbitMQ)
 
-## Getting started
+## Run the full sandbox (Docker)
+
+```bash
+make stack          # builds and starts Postgres, Django API + workers, Phoenix, the game
+make demo-launch    # acts as an operator: prints a signed-session launch link — open it
+```
+
+Or open `http://localhost:8000/demo/operator` to see the game embedded through the operator
+SDK (postMessage handshake). `make e2e` runs the multi-browser tests, `make invariants` checks
+the ledger. Back-office (read-only): `http://localhost:8000/django-admin/` after
+`docker compose -f infra/compose/docker-compose.yml exec api python manage.py createsuperuser`.
+
+## Develop locally
 
 ```bash
 cp .env.example .env

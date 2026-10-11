@@ -31,6 +31,7 @@ Scope: Phase 1 (architecture-first discovery). No application code, dependencies
 | 20 | [Open questions & assumptions](20-open-questions-and-assumptions.md) | Everything that needs a decision |
 | 21 | [Requirements traceability matrix](21-requirements-traceability.md) | Requirement → component → doc → test → milestone |
 | 22 | [Architecture review (approval gate)](22-architecture-review.md) | The concise review to approve or reject |
+| 23 | [Implementation status](23-implementation-status.md) | What is built, interim deviations, how to run it |
 
 ## Conventions used throughout
 

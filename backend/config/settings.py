@@ -112,11 +112,18 @@ LOGGING = {
 # Shared bearer token for Phoenix <-> Django internal calls (mTLS added in production).
 INTERNAL_SERVICE_TOKEN = env("INTERNAL_SERVICE_TOKEN", "dev-internal-token" if DEBUG else None)
 
+
+def _dev_key(purpose: str) -> str:
+    """Development-only key derived from SECRET_KEY; never a literal in the repository."""
+    import base64
+    import hashlib
+
+    return base64.b64encode(hashlib.sha256(f"{SECRET_KEY}:{purpose}".encode()).digest()).decode()
+
+
 # Ed25519 key (base64 of the 32-byte raw private key) signing game-session tokens (ADR-022).
 GAME_TOKEN_PRIVATE_KEY_B64 = env(
-    "GAME_TOKEN_PRIVATE_KEY_B64",
-    # Deterministic dev-only key; production must provide its own.
-    "ZGV2LW9ubHktbm90LWEtc2VjcmV0LWdhbWUta2V5ISE=" if DEBUG else None,
+    "GAME_TOKEN_PRIVATE_KEY_B64", _dev_key("game-session-token") if DEBUG else None
 )
 GAME_TOKEN_TTL_SECONDS = int(env("GAME_TOKEN_TTL_SECONDS", "900"))
 LAUNCH_TOKEN_TTL_SECONDS = int(env("LAUNCH_TOKEN_TTL_SECONDS", "60"))

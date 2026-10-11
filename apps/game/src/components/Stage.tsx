@@ -18,6 +18,8 @@ export function Stage({ controller, reducedMotion }: { controller: GameControlle
   const subRef = useRef<HTMLParagraphElement>(null);
   const [noWebGL, setNoWebGL] = useState(false);
   const phase = useStore(controller.store, (s) => s.round.phase);
+  const roundNumber = useStore(controller.store, (s) => s.round.number);
+  const crash = useStore(controller.store, (s) => s.round.crash);
 
   useEffect(() => {
     let scene: RocketScene | null = null;
@@ -90,6 +92,10 @@ export function Stage({ controller, reducedMotion }: { controller: GameControlle
   return (
     <div
       ref={wrapRef}
+      data-testid="stage"
+      data-phase={phase}
+      data-round={roundNumber}
+      data-crash={crash ?? ""}
       className="relative min-h-[34dvh] flex-1 overflow-hidden rounded-2xl bg-[#0b1020]"
       style={{ containerType: "inline-size" }}
     >

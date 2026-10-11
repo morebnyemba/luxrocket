@@ -22,7 +22,8 @@ config :lux_rt, LuxRtWeb.Endpoint,
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
   http: [ip: {127, 0, 0, 1}, port: 4000],
   check_origin: false,
-  code_reloader: true,
+  # Hot reloading would purge live coordinator state machines mid-round; restart instead.
+  code_reloader: false,
   debug_errors: true,
   secret_key_base:
     System.get_env("SECRET_KEY_BASE", String.duplicate("dev-only-not-a-secret-", 4)),
@@ -64,3 +65,6 @@ config :phoenix, :stacktrace_depth, 20
 # Initialize plugs at runtime for faster development compilation
 config :phoenix, :plug_init_mode, :runtime
 config :logger, level: :info
+
+# Throwaway seed KEK derived in code for local development only.
+config :lux_rt, :dev_derived_kek, true

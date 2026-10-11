@@ -49,11 +49,12 @@ config :lux_rt, :platform,
   service_token: "dev-internal-token",
   bet_timeout_ms: 900
 
-# Seed-chain settings. The KEK must come from a secret store outside development.
+# Seed-chain settings. The KEK comes from a secret store (SEED_KEK_B64); dev and test derive
+# a throwaway key instead (see :dev_derived_kek below), production refuses to start without it.
 config :lux_rt, :fairness,
   chain_length: 100_000,
   checkpoint_every: 1_000,
-  seed_kek_b64: "ZGV2LW9ubHktbm90LWEtc2VjcmV0LXNlZWQta2V5ISE="
+  seed_kek_b64: nil
 
 # Configures the endpoint
 config :lux_rt, LuxRtWeb.Endpoint,

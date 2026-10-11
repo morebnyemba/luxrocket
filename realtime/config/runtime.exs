@@ -28,6 +28,20 @@ if url = System.get_env("PLATFORM_INTERNAL_URL") do
     bet_timeout_ms: String.to_integer(System.get_env("BET_TIMEOUT_MS", "900"))
 end
 
+# Optional timing overrides (staging/E2E). Production uses the certified ruleset defaults.
+timing_env = %{
+  betting_window_ms: "BETTING_WINDOW_MS",
+  close_grace_ms: "CLOSE_GRACE_MS",
+  cooldown_ms: "COOLDOWN_MS"
+}
+
+overrides =
+  for {key, var} <- timing_env, value = System.get_env(var), do: {key, String.to_integer(value)}
+
+if overrides != [] do
+  config :lux_rt, :timing, Keyword.merge(Application.get_env(:lux_rt, :timing, []), overrides)
+end
+
 if origins = System.get_env("GAME_ORIGINS") do
   config :lux_rt, :game_origins, String.split(origins, ",", trim: true)
 end
@@ -37,6 +51,10 @@ if kek = System.get_env("SEED_KEK_B64") do
     chain_length: String.to_integer(System.get_env("SEED_CHAIN_LENGTH", "1000000")),
     checkpoint_every: 1_000,
     seed_kek_b64: kek
+end
+
+if config_env() == :prod and is_nil(System.get_env("SEED_KEK_B64")) do
+  raise "SEED_KEK_B64 is required in production (32-byte key, base64)"
 end
 
 if config_env() == :prod do

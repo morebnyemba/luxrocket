@@ -1,10 +1,23 @@
-# Local development dependencies. Application processes run on the host (make dev-*) until
-# their Dockerfiles are wired in; see docs/architecture/17-deployment-and-observability.md.
+# Local stack. `make up` starts only the data services; `make stack` builds and runs everything
+# (sandbox mode, virtual credits) — see README "Run the full sandbox".
 name: luxrocket
+
+x-backend-env: &backend-env
+  DJANGO_DEBUG: "1"                     # sandbox/dev stack only; production sets 0
+  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-local-stack-only-change-me}
+  DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,api"
+  POSTGRES_HOST: postgres
+  POSTGRES_DB: ${POSTGRES_DB:-luxrocket}
+  POSTGRES_USER: ${POSTGRES_USER:-luxrocket}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-luxrocket-dev-only}
+  INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-stack-internal-token}
+  GAME_ORIGIN: http://localhost:3000
+  PLAY_BASE_URL: http://localhost:3000
+  REALTIME_INTERNAL_URL: http://realtime:4000
 
 services:
   postgres:
-    image: postgres:16.10-alpine
+    image: postgres:16-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-luxrocket}
       POSTGRES_USER: ${POSTGRES_USER:-luxrocket}
@@ -20,10 +33,7 @@ services:
     image: redis:7.4-alpine
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     ports: ["127.0.0.1:6379:6379"]
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      retries: 10
+    profiles: ["infra"]
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
@@ -32,10 +42,60 @@ services:
       RABBITMQ_DEFAULT_PASS: luxrocket-dev-only
       RABBITMQ_DEFAULT_VHOST: luxrocket
     ports: ["127.0.0.1:5672:5672", "127.0.0.1:15672:15672"]
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 10s
-      retries: 10
+    profiles: ["infra"]
+
+  # One-shot: Django + Phoenix migrations and the demo operator (key written to ./.demo).
+  migrate:
+    build: { context: ../.., dockerfile: backend/Dockerfile }
+    environment: *backend-env
+    command: ["sh", "-c", "python manage.py migrate --noinput && python manage.py seed_demo --key-out /demo/operator.key --origin http://localhost:8000"]
+    volumes: ["../../.demo:/demo"]
+    # Local tooling only: writes the demo operator key into the host-mounted ./.demo directory.
+    user: root
+    depends_on: { postgres: { condition: service_healthy } }
+    profiles: ["app"]
+
+  api:
+    build: { context: ../.., dockerfile: backend/Dockerfile }
+    environment: *backend-env
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on: { migrate: { condition: service_completed_successfully } }
+    profiles: ["app"]
+
+  workers:
+    build: { context: ../.., dockerfile: backend/Dockerfile }
+    environment: *backend-env
+    command: ["python", "manage.py", "run_workers"]
+    depends_on: { migrate: { condition: service_completed_successfully } }
+    profiles: ["app"]
+
+  realtime:
+    build: { context: ../../realtime }
+    environment:
+      DATABASE_URL: ecto://${POSTGRES_USER:-luxrocket}:${POSTGRES_PASSWORD:-luxrocket-dev-only}@postgres/${POSTGRES_DB:-luxrocket}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-local-stack-only-secret-key-base-change-me-0123456789abcdef0123456789}
+      SEED_KEK_B64: ${SEED_KEK_B64:?set SEED_KEK_B64 (32 random bytes, base64) — make stack does this}
+      SEED_CHAIN_LENGTH: "100000"
+      PHX_HOST: localhost
+      PHX_SERVER: "true"
+      PORT: "4000"
+      PLATFORM_INTERNAL_URL: http://api:8000
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-stack-internal-token}
+      GAME_ORIGINS: http://localhost:3000
+    command: ["sh", "-c", "/app/bin/lux_rt eval 'LuxRt.Release.migrate()' && exec /app/bin/lux_rt start"]
+    ports: ["127.0.0.1:4000:4000"]
+    depends_on: { migrate: { condition: service_completed_successfully } }
+    profiles: ["app"]
+
+  game:
+    build:
+      context: ../..
+      dockerfile: apps/game/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+        NEXT_PUBLIC_RT_URL: ws://localhost:4000/socket
+    ports: ["127.0.0.1:3000:8080"]
+    profiles: ["app"]
 
 volumes:
   pgdata:

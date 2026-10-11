@@ -22,13 +22,14 @@ export function GameView({ controller }: { controller: GameController }) {
   const [dialog, setDialog] = useState<"rules" | "verify" | null>(null);
 
   if (connection === "launching" || (connection === "connecting" && !session)) {
-    return <Centered title="LUX ROCKET" body="Preparing for launch…" />;
+    return <Centered title="LUX ROCKET" body="Preparing for launch…" testId="launching" />;
   }
   if (connection === "error" || connection === "ended") {
     return (
       <Centered
         title={error === "SESSION_REVOKED" ? "Session ended by the operator" : "Session ended"}
         body="Please reopen the game from your operator's site."
+        testId="ended"
       />
     );
   }
@@ -78,7 +79,7 @@ export function GameView({ controller }: { controller: GameController }) {
       </div>
 
       {connection === "reconnecting" && (
-        <div role="status" className="fixed inset-x-0 top-0 z-40 bg-[var(--warning)] py-1 text-center text-sm font-semibold text-black">
+        <div role="status" data-testid="reconnecting" className="fixed inset-x-0 top-0 z-40 bg-[var(--warning)] py-1 text-center text-sm font-semibold text-black">
           Reconnecting… your bets are safe.
         </div>
       )}
@@ -116,9 +117,9 @@ function phaseLabel(phase: string): string {
   }
 }
 
-function Centered({ title, body }: { title: string; body: string }) {
+function Centered({ title, body, testId }: { title: string; body: string; testId: string }) {
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
+    <main data-testid={testId} className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
       <p className="text-sm font-black tracking-[0.3em] text-[var(--accent)]">{title}</p>
       <p className="text-[var(--text-muted)]">{body}</p>
     </main>

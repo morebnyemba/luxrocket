@@ -130,9 +130,17 @@ defmodule LuxRt.Fairness.SeedChain do
   # ---- envelope encryption -----------------------------------------------------------------
 
   defp kek do
-    key = Application.fetch_env!(:lux_rt, :fairness)[:seed_kek_b64] |> Base.decode64!()
-    if byte_size(key) != 32, do: raise("seed KEK must be 32 bytes")
-    key
+    case Application.fetch_env!(:lux_rt, :fairness)[:seed_kek_b64] do
+      nil ->
+        if Application.get_env(:lux_rt, :dev_derived_kek, false),
+          do: :crypto.hash(:sha256, "luxrocket development-only seed KEK"),
+          else: raise("SEED_KEK_B64 is not configured")
+
+      b64 ->
+        key = Base.decode64!(b64)
+        if byte_size(key) != 32, do: raise("seed KEK must be 32 bytes")
+        key
+    end
   end
 
   defp encrypt(plain) do
