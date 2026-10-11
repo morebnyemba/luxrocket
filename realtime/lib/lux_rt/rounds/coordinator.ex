@@ -870,6 +870,7 @@ defmodule LuxRt.Rounds.Coordinator do
         %{
           panel: b.panel,
           bet_id: b.bet_id,
+          command_id: b.command_id,
           status:
             case b.status do
               :active ->
@@ -890,7 +891,13 @@ defmodule LuxRt.Rounds.Coordinator do
 
     pending =
       for {{sid, panel}, p} <- data.pending, sid == session_id do
-        %{panel: panel, status: "PENDING", stake: p.stake, auto_cashout_x10000: p.auto}
+        %{
+          panel: panel,
+          command_id: p.command_id,
+          status: "PENDING",
+          stake: p.stake,
+          auto_cashout_x10000: p.auto
+        }
       end
 
     bets ++ pending

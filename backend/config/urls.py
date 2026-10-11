@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path
 
-from luxrocket.api import game_views, internal_views, operator_views
+from luxrocket.api import demo_views, game_views, internal_views, operator_views
 from luxrocket.core.views import healthz
 
 urlpatterns = [
@@ -24,6 +24,8 @@ urlpatterns = [
     path("internal/v1/sessions/<str:session_id>/status", internal_views.session_status),
     path("internal/v1/bets", internal_views.place_bet),
     path("internal/v1/rt-events", internal_views.rt_events),
+    # Development-only demo operator page (404 unless DEBUG and DEMO_PAGES)
+    path("demo/operator", demo_views.demo_operator),
     # Interim back-office for platform staff (Next.js consoles replace it, Phase F)
     path("django-admin/", admin.site.urls),
 ]

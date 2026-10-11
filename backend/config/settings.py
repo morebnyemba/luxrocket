@@ -139,3 +139,5 @@ RULESET = {
 }
 SANDBOX_DEBIT_UNKNOWN_RATE = float(env("SANDBOX_DEBIT_UNKNOWN_RATE", "0"))
 CONTRACTS_DIR = env("CONTRACTS_DIR", str(BASE_DIR.parent / "contracts"))
+DEMO_PAGES = env("DEMO_PAGES", "1" if DEBUG else "0") == "1"
+SDK_PATH = env("SDK_PATH", str(BASE_DIR.parent / "packages" / "sdk" / "src" / "luxrocket-embed.js"))
