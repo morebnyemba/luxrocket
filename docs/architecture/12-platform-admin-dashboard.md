@@ -119,7 +119,16 @@ No role can approve its own request (exception: `PLAT_OWNER` market changes, ADR
   market) and **reactivation**, finance queue with retry, bet timeline (wallet attempts + ledger),
   audited player search (masked for support), discrepancy resolution, read-only rounds with journal,
   staff (one owner, ≤ 3 superadmins appointed by the owner, passkey reset), audit search + chain verification.
-- Not yet: game versions / rulesets / streams / seed-chain activation, maintenance & drain requests to Phoenix,
+- **Rulesets & streams (as built):** a ruleset varies only the house edge (100–1000 bp) and max multiplier
+  (100×–10000×); formula and curve are fixed per deployment (the bit-identical curve table depends on them).
+  Drafts become APPROVED only through four-eyes with a certification reference; approved rulesets are
+  immutable (DB trigger). Binding a stream is four-eyes; it bumps `stream_config.version` and emits
+  `stream.config` through the outbox. Phoenix keeps it pending and adopts it when creating the **next** round,
+  journaling `ruleset_code`/`ruleset_version` in `ROUND_CREATED`; on boot it syncs from
+  `GET /internal/v1/streams/{stream}/config`, else the last journaled rules, else its static default. Django
+  marks a round verified only if its journaled parameters equal an approved ruleset. Seed chains: read-only
+  public facts (terminal hash, salt source, usage) — seeds are never selected.
+- Not yet: game versions & releases, seed-chain ceremony/activation, maintenance & drain requests to Phoenix,
   adjustments (`ADJUSTMENT_CREDIT`), analytics time series, incidents register, exports, IP allowlist.
 
 ## 6. Acceptance criteria

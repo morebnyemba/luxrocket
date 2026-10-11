@@ -1,7 +1,7 @@
 defmodule LuxRtWeb.InternalController do
   @moduledoc """
   Platform -> real-time events relayed from Django's outbox (doc 02 §4 channel ③): settlement
-  confirmations and session revocations. At-least-once; de-duplicated by event id.
+  confirmations, session revocations and stream ruleset bindings. At-least-once; de-duplicated by event id.
   """
   use LuxRtWeb, :controller
 
@@ -40,6 +40,11 @@ defmodule LuxRtWeb.InternalController do
   defp deliver(%{"type" => "session.revoked", "payload" => p}) do
     private(p["session_id"], "SESSION_REVOKED", %{reason: p["reason"]})
     LuxRtWeb.Endpoint.broadcast("session:" <> p["session_id"], "disconnect", %{})
+  end
+
+  # A newly approved ruleset binding: the coordinator adopts it at the next round boundary.
+  defp deliver(%{"type" => "stream.config", "payload" => p}) do
+    LuxRt.Rounds.Coordinator.set_rules(p["stream"], p)
   end
 
   defp deliver(_), do: :ok

@@ -29,6 +29,7 @@ urlpatterns = [
     path("internal/v1/sessions/<str:session_id>/status", internal_views.session_status),
     path("internal/v1/bets", internal_views.place_bet),
     path("internal/v1/rt-events", internal_views.rt_events),
+    path("internal/v1/streams/<str:stream>/config", internal_views.stream_config),
     # Development-only demo operator page (404 unless DEBUG and DEMO_PAGES)
     path("demo/operator", demo_views.demo_operator),
     # Interim back-office for platform staff (Next.js consoles replace it, Phase F)

@@ -43,6 +43,9 @@ PERMISSIONS: dict[str, set[str]] = {
     "reconciliation.resolve": roles(R.OWNER, R.SUPERADMIN, R.FINANCE, R.RISK),
     "staff.manage": roles(R.OWNER, R.SUPERADMIN),
     "audit.read": roles(R.OWNER, R.SUPERADMIN, R.RISK, R.AUDITOR),
+    "games.read": ALL,
+    "games.manage": roles(R.OWNER, R.SUPERADMIN, R.GAME_RELEASE),
+    "games.approve": roles(R.OWNER, R.SUPERADMIN, R.RISK),
 }
 # Every mutation guarded by one of these needs a passkey assertion within the step-up window.
 STEP_UP = {
@@ -54,6 +57,8 @@ STEP_UP = {
     "credentials.manage",
     "finance.retry",
     "staff.manage",
+    "games.manage",
+    "games.approve",
 }
 SUPERADMIN_CAP = 3
 LOCK_AFTER = 5

@@ -100,3 +100,45 @@ test("the console is never framed and rejects cross-site writes", async ({ reque
   });
   expect(forged.status()).toBe(403);
 });
+
+test("a ruleset needs a certificate and a different approver before it can be bound", async ({ browser }) => {
+  const run = Date.now();
+  const password = "e2e-console-passphrase";
+  const carol = `carol-${run}@luxrocket.local`;
+  const dave = `dave-${run}@luxrocket.local`;
+  createPlatformStaff(carol, password, "PLAT_GAME_RELEASE");
+  createPlatformStaff(dave, password, "PLAT_RISK");
+  const code = `LR-E2E-${run}`;
+
+  // Game release drafts a ruleset; the RTP preview reflects the edge.
+  const c = await staffPage(browser);
+  await signInAndEnrol(c, carol, password);
+  await c.getByRole("link", { name: "Games" }).click();
+  await c.getByLabel("Code").fill(code);
+  await c.getByLabel("House edge (bp)").fill("250");
+  await expect(c.getByText("RTP preview: 97.50% at every target")).toBeVisible();
+  await c.getByRole("button", { name: "Create draft" }).click();
+  const row = c.getByRole("row", { name: new RegExp(code) });
+  await expect(row.getByText("DRAFT")).toBeVisible();
+
+  // No certificate, no request.
+  await row.getByRole("button", { name: "Request approval" }).click();
+  await expect(c.getByText(/certification reference/)).toBeVisible();
+  await row.getByLabel(`Certificate for ${code}`).fill("GLI-19-E2E");
+  await row.getByRole("button", { name: "Request approval" }).click();
+  await expect(c.getByText(/a different approver must decide/)).toBeVisible();
+
+  // Risk approves on their own key.
+  const d = await staffPage(browser);
+  await signInAndEnrol(d, dave, password);
+  await d.getByRole("link", { name: "Approvals" }).click();
+  const req = d.getByRole("row", { name: new RegExp(code) });
+  await req.getByLabel("Decision note").fill("certificate matches 2.50% edge");
+  await req.getByRole("button", { name: "Approve" }).click();
+  await expect(d.getByText("Request approved and executed.")).toBeVisible();
+
+  await c.reload();
+  await expect(c.getByRole("row", { name: new RegExp(code) }).getByRole("cell", { name: /APPROVED/ })).toBeVisible();
+  // It is now offered for binding (bound only through another four-eyes request).
+  await expect(c.getByRole("option", { name: new RegExp(code) }).first()).toBeAttached();
+});

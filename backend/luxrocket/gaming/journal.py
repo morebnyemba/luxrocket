@@ -81,7 +81,31 @@ def on_round_created(round_id: uuid.UUID, stream: str, p: dict[str, Any]) -> Non
     rnd.commitment = p.get("commitment", "")
     rnd.house_edge_bp = p.get("house_edge_bp")
     rnd.max_multiplier_x10000 = p.get("max_multiplier_x10000")
+    rnd.ruleset_code = str(p.get("ruleset_code") or "LR-STD-97")[:40]
+    rnd.ruleset_version = p.get("ruleset_version")
+    rnd.ruleset_ok = _ruleset_approved(rnd)
+    if not rnd.ruleset_ok:
+        # The engine ran parameters nobody approved: the outcome can never count as verified.
+        log.critical(
+            "round %s uses unapproved ruleset %s (edge=%s max=%s)",
+            round_id,
+            rnd.ruleset_code,
+            rnd.house_edge_bp,
+            rnd.max_multiplier_x10000,
+        )
     rnd.save()
+
+
+def _ruleset_approved(rnd: GameRound) -> bool:
+    from luxrocket.gaming.models import GameRuleset
+
+    rs = GameRuleset.objects.filter(code=rnd.ruleset_code).first()
+    return bool(
+        rs is not None
+        and rs.status in (GameRuleset.Status.APPROVED, GameRuleset.Status.RETIRED)
+        and rs.house_edge_bp == rnd.house_edge_bp
+        and rs.max_multiplier_x10000 == rnd.max_multiplier_x10000
+    )
 
 
 def _set_state(state: str) -> Any:
@@ -177,7 +201,7 @@ def _verify_outcome(rnd: GameRound, p: dict[str, Any]) -> bool:
             seed, salt, int(rnd.house_edge_bp or 0), int(rnd.max_multiplier_x10000 or 0)
         )
         committed = hashlib.sha256(seed).hexdigest() == rnd.commitment
-        return committed and crash == int(p["crash_x10000"])
+        return committed and crash == int(p["crash_x10000"]) and rnd.ruleset_ok is not False
     except (KeyError, ValueError) as exc:
         log.critical("outcome verification failed to run: %s", exc)
         return False

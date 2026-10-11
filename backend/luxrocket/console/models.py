@@ -76,6 +76,8 @@ class ApprovalRequest(models.Model):
     class Action(models.TextChoices):
         ENABLE_REAL_MONEY = "ENABLE_REAL_MONEY"
         REACTIVATE_OPERATOR = "REACTIVATE_OPERATOR"
+        APPROVE_RULESET = "APPROVE_RULESET"
+        BIND_RULESET = "BIND_RULESET"
 
     class Status(models.TextChoices):
         PENDING = "PENDING"
@@ -85,7 +87,11 @@ class ApprovalRequest(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     action = models.CharField(max_length=32, choices=Action.choices)
-    operator = models.ForeignKey(Operator, on_delete=models.PROTECT, related_name="approvals")
+    operator = models.ForeignKey(
+        Operator, null=True, blank=True, on_delete=models.PROTECT, related_name="approvals"
+    )
+    # What the request is about: operator public id, ruleset code or stream slug.
+    subject = models.CharField(max_length=80)
     payload = models.JSONField(default=dict)
     reason = models.TextField()
     requested_by = models.ForeignKey(
@@ -102,9 +108,9 @@ class ApprovalRequest(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["action", "operator"],
+                fields=["action", "subject"],
                 condition=models.Q(status="PENDING"),
-                name="uniq_pending_approval",
+                name="uniq_pending_approval_subject",
             ),
             models.CheckConstraint(
                 condition=models.Q(decided_by__isnull=True)

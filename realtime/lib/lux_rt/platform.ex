@@ -41,6 +41,15 @@ defmodule LuxRt.Platform do
     end
   end
 
+  @doc "The stream's approved ruleset as currently bound by the platform (boot-time sync)."
+  def stream_config(stream) do
+    case Req.get(req(2_000), url: "/internal/v1/streams/#{URI.encode(stream)}/config") do
+      {:ok, %{status: 200, body: %{"version" => _} = config}} -> {:ok, config}
+      {:ok, %{status: status}} -> {:error, status}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   @doc "Relay a batch of journal facts. Returns :ok, {:gap, expected_seq} or {:error, reason}."
   def post_events(events) do
     case Req.post(req(5_000), url: "/internal/v1/rt-events", json: %{events: events}) do

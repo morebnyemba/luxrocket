@@ -29,9 +29,10 @@ until the Gate RM requirements in doc 19 §5 are met.
 | Cross-tenant isolation suite + route inventory (AC-OP-1) | ✅ | `backend/tests/test_portal.py` |
 | **Platform console** (doc 12): password + mandatory WebAuthn passkey (UV required) for every staff sign-in, passkey step-up for privileged writes, §4 role matrix, owner-only markets, operator onboarding/suspend, four-eyes real-money enablement and reactivation (DB-enforced requester ≠ approver), finance queue + retry, bet timeline, audited player search, discrepancy resolution, read-only rounds + journal, staff, audit + chain verification | ✅ `http://localhost:3003` | `backend/luxrocket/console`, `apps/admin` |
 | Shared console UI/API kit | ✅ | `packages/console-kit` |
+| **Game release controls**: certified, immutable rulesets (four-eyes approval with lab certificate), four-eyes stream binding adopted by Phoenix at the next round boundary, per-round ruleset journaling, Django verification that every round ran an approved ruleset, read-only seed-chain facts | ✅ console → Games | `gaming/rulesets.py`, `console/views.py`, `rounds/coordinator.ex` |
 | Django admin (break-glass / data inspection only) | ✅ `/django-admin/` | `*/admin.py` |
 | Money invariants checker | ✅ `make invariants` | `gaming/invariants.py` |
-| Tests | ✅ 152 Django, 28 Phoenix, 16 game-core, 8 E2E (4 gameplay multi-browser, 2 portal, 2 console with virtual security keys) | CI job `e2e` runs the full stack |
+| Tests | ✅ 159 Django, 33 Phoenix, 16 game-core, 9 E2E (4 gameplay multi-browser, 2 portal, 3 console with virtual security keys) | CI job `e2e` runs the full stack |
 | One-command sandbox stack | ✅ `make stack` | `infra/compose/docker-compose.yml` |
 
 ## Deliberate interim deviations (tracked)
@@ -45,7 +46,7 @@ until the Gate RM requirements in doc 19 §5 are met.
 | mTLS on internal calls | Shared bearer service token | Add mTLS on the private network. |
 | Postgres roles per service + RLS for the portal (ADR-019) | Single DB role; tenant isolation by session-derived operator + explicit filters, proven by the cross-tenant route suite | Add `portal_rw` role + `FORCE ROW LEVEL SECURITY` with `SET LOCAL app.operator_id` as defence in depth. |
 | Per-operator CSP `frame-ancestors` on a dynamic launch document | Static launch page; dev nginx allows any parent | Serve the launch document from the platform with per-operator CSP. |
-| Console: game versions / rulesets / streams / seed-chain activation, maintenance & drain, adjustments, analytics series, incidents, exports, IP allowlist (doc 12) | Not yet | Next console increments; approvals, step-up and audit primitives are in place. |
+| Console: game versions & releases, seed-chain ceremony/activation, maintenance & drain, adjustments, analytics series, incidents, exports, IP allowlist (doc 12) | Not yet | Next console increments; approvals, step-up and audit primitives are in place. |
 | Portal extras (doc 13): domains with DNS verification, game settings & config versions, CSV/XLSX exports, operator-enforced MFA, HMAC credentials | Not yet | Next increments; the auth/audit/tenant core they need is in place. |
 | Daily WORM anchor of the audit-chain head | Not yet | `audit/verify` exposes the head hash; add the scheduled export to object storage. |
 | Seamless wallet adapter on aiohttp workers | Synchronous `httpx` pooled client inside the existing workers | Same contract and semantics; switch to async when wallet-call concurrency (not correctness) becomes the bottleneck. REAL sessions additionally require `real_money_enabled`, LIVE status and a seamless wallet — still gated by Gate RM (doc 19 §5). |

@@ -68,3 +68,16 @@ def rt_events(request: HttpRequest) -> HttpResponse:
     if result.expected_seq is not None:
         return JsonResponse({**body, "expected_seq": result.expected_seq}, status=409)
     return JsonResponse(body)
+
+
+@require_http_methods(["GET"])
+@require_service_token
+def stream_config(request: HttpRequest, stream: str) -> HttpResponse:
+    """Phoenix boot-time sync: the stream's currently bound, approved ruleset."""
+    from luxrocket.gaming.models import StreamConfig
+    from luxrocket.gaming.rulesets import config_view
+
+    config = StreamConfig.objects.select_related("ruleset").filter(stream_slug=stream).first()
+    if config is None:
+        return problem("NOT_FOUND", 404)
+    return JsonResponse(config_view(config))

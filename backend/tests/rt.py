@@ -36,7 +36,8 @@ class RoundSim:
             "payload": payload,
         }
 
-    def created(self) -> dict:
+    def created(self, **ruleset: object) -> dict:
+        """ROUND_CREATED; pass ruleset_code/ruleset_version (or other overrides) to vary it."""
         return self._ev(
             "ROUND_CREATED",
             {
@@ -44,6 +45,7 @@ class RoundSim:
                 "commitment": hashlib.sha256(self.seed).hexdigest(),
                 "house_edge_bp": EDGE,
                 "max_multiplier_x10000": MAX,
+                **ruleset,
             },
         )
 

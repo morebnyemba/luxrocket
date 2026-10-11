@@ -41,7 +41,8 @@ from luxrocket.console.models import (
 )
 from luxrocket.core.errors import problem
 from luxrocket.core.ids import parse_public_id, tx_public_id
-from luxrocket.gaming.models import Bet, GameRound, GameSession
+from luxrocket.gaming import rulesets
+from luxrocket.gaming.models import Bet, GameRound, GameRuleset, GameSession, StreamConfig
 from luxrocket.operators.models import (
     Market,
     Operator,
@@ -536,10 +537,18 @@ def revoke_operator_credential(
 REQUEST_PERM: dict[str, str] = {
     ApprovalRequest.Action.ENABLE_REAL_MONEY: "realmoney.request",
     ApprovalRequest.Action.REACTIVATE_OPERATOR: "operators.manage",
+    ApprovalRequest.Action.APPROVE_RULESET: "games.manage",
+    ApprovalRequest.Action.BIND_RULESET: "games.manage",
 }
 APPROVE_PERM: dict[str, str] = {
     ApprovalRequest.Action.ENABLE_REAL_MONEY: "realmoney.approve",
     ApprovalRequest.Action.REACTIVATE_OPERATOR: "reactivate.approve",
+    ApprovalRequest.Action.APPROVE_RULESET: "games.approve",
+    ApprovalRequest.Action.BIND_RULESET: "games.approve",
+}
+OPERATOR_ACTIONS = {
+    ApprovalRequest.Action.ENABLE_REAL_MONEY,
+    ApprovalRequest.Action.REACTIVATE_OPERATOR,
 }
 REAL_MONEY_EVIDENCE = ("contract_ref", "licence_ref", "certification_ref", "security_signoff_ref")
 
@@ -548,8 +557,9 @@ def _approval(a: ApprovalRequest) -> dict[str, Any]:
     return {
         "id": str(a.id),
         "action": a.action,
-        "operator": a.operator.public_id,
-        "operator_name": a.operator.legal_name,
+        "subject": a.subject,
+        "operator": a.operator.public_id if a.operator else None,
+        "operator_name": a.operator.legal_name if a.operator else None,
         "payload": a.payload,
         "reason": a.reason,
         "requested_by": a.requested_by.email,
@@ -561,59 +571,107 @@ def _approval(a: ApprovalRequest) -> dict[str, Any]:
     }
 
 
-def _preconditions(action: str, op: Operator, payload: dict[str, Any]) -> str | None:
-    if action == ApprovalRequest.Action.ENABLE_REAL_MONEY:
-        if op.real_money_enabled:
-            return "real money is already enabled"
-        if op.status not in (Operator.Status.SANDBOX, Operator.Status.LIVE):
-            return f"operator is {op.status}"
-        if op.wallet_kind != WalletKind.SEAMLESS_V1 or not op.wallet_conformance_passed_at:
-            return "the operator's seamless wallet has not passed the conformance suite"
-        missing = [k for k in REAL_MONEY_EVIDENCE if not str(payload.get(k, "")).strip()]
-        if missing:
-            return f"missing evidence: {', '.join(missing)}"
-        if not Market.objects.filter(
-            country_code__in=op.jurisdictions.values("country_code"), status=Market.Status.REAL
-        ).exists():
-            return "none of the operator's jurisdictions is open for real money"
-    if (
-        action == ApprovalRequest.Action.REACTIVATE_OPERATOR
-        and op.status != Operator.Status.SUSPENDED
-    ):
-        return "operator is not suspended"
-    return None
+def _preconditions(a: ApprovalRequest) -> str | None:
+    """Checked when the request is made AND again, inside the transaction, when approved."""
+    action, payload = a.action, a.payload
+    if action in OPERATOR_ACTIONS:
+        op = Operator.objects.filter(pk=a.operator_id).first() if a.operator_id else None
+        if op is None:
+            return "operator not found"
+        if action == ApprovalRequest.Action.ENABLE_REAL_MONEY:
+            if op.real_money_enabled:
+                return "real money is already enabled"
+            if op.status not in (Operator.Status.SANDBOX, Operator.Status.LIVE):
+                return f"operator is {op.status}"
+            if op.wallet_kind != WalletKind.SEAMLESS_V1 or not op.wallet_conformance_passed_at:
+                return "the operator's seamless wallet has not passed the conformance suite"
+            missing = [k for k in REAL_MONEY_EVIDENCE if not str(payload.get(k, "")).strip()]
+            if missing:
+                return f"missing evidence: {', '.join(missing)}"
+            if not Market.objects.filter(
+                country_code__in=op.jurisdictions.values("country_code"),
+                status=Market.Status.REAL,
+            ).exists():
+                return "none of the operator's jurisdictions is open for real money"
+        elif op.status != Operator.Status.SUSPENDED:
+            return "operator is not suspended"
+        return None
+    if action == ApprovalRequest.Action.APPROVE_RULESET:
+        rs = GameRuleset.objects.filter(code=a.subject).first()
+        if rs is None or rs.status != GameRuleset.Status.DRAFT:
+            return "only an existing DRAFT ruleset can be approved"
+        if not str(payload.get("certification_ref", "")).strip():
+            return "a certification reference (test lab certificate) is required"
+        return None
+    if action == ApprovalRequest.Action.BIND_RULESET:
+        rs = GameRuleset.objects.filter(code=payload.get("ruleset", "")).first()
+        if rs is None or rs.status != GameRuleset.Status.APPROVED:
+            return "only an APPROVED ruleset can be bound"
+        current = StreamConfig.objects.filter(stream_slug=a.subject).first()
+        if current is not None and current.ruleset_id == rs.code:
+            return "the stream already uses this ruleset"
+        return None
+    return "unknown action"
 
 
-@console_view(methods=("POST",))
-def request_approval(request: HttpRequest, ctx: Ctx, op_id: str) -> HttpResponse:
-    data = _body(request)
-    action = str(data.get("action", ""))
+def _new_request(
+    ctx: Ctx, action: str, subject: str, operator: Operator | None, data: dict[str, Any]
+) -> HttpResponse:
     if action not in REQUEST_PERM:
         return problem("INVALID_REQUEST", 422)
     if not ctx.can(REQUEST_PERM[action]):
         return problem("FORBIDDEN", 403)
     if not step_up_fresh(ctx.session):
         return problem("STEP_UP_REQUIRED", 403)
-    op = _get_operator(op_id)
-    if op is None:
-        return problem("NOT_FOUND", 404)
     reason = str(data.get("reason", "")).strip()
     payload = {k: str(v) for k, v in (data.get("payload") or {}).items()}
     if not reason:
         return problem("REASON_REQUIRED", 422)
-    if why := _preconditions(action, op, payload):
-        return problem("PRECONDITION_FAILED", 422, why)
-    if ApprovalRequest.objects.filter(action=action, operator=op, status="PENDING").exists():
-        return problem("ALREADY_PENDING", 409)
-    a = ApprovalRequest.objects.create(
-        action=action, operator=op, payload=payload, reason=reason, requested_by=ctx.staff
+    draft = ApprovalRequest(
+        action=action,
+        operator=operator,
+        subject=subject,
+        payload=payload,
+        reason=reason,
+        requested_by=ctx.staff,
     )
-    ctx.audit("approval.requested", str(a.id), op.pk, approval_action=action, payload=payload)
-    return JsonResponse(_approval(a), status=201)
+    if why := _preconditions(draft):
+        return problem("PRECONDITION_FAILED", 422, why)
+    if ApprovalRequest.objects.filter(action=action, subject=subject, status="PENDING").exists():
+        return problem("ALREADY_PENDING", 409)
+    draft.save()
+    ctx.audit(
+        "approval.requested",
+        str(draft.id),
+        operator.pk if operator else None,
+        approval_action=action,
+        subject=subject,
+        payload=payload,
+    )
+    return JsonResponse(_approval(draft), status=201)
 
 
-@console_view()
+@console_view(methods=("POST",))
+def request_approval(request: HttpRequest, ctx: Ctx, op_id: str) -> HttpResponse:
+    data = _body(request)
+    if str(data.get("action", "")) not in OPERATOR_ACTIONS:
+        return problem("INVALID_REQUEST", 422)
+    if not ctx.can(REQUEST_PERM[str(data["action"])]):
+        return problem("FORBIDDEN", 403)
+    op = _get_operator(op_id)
+    if op is None:
+        return problem("NOT_FOUND", 404)
+    return _new_request(ctx, str(data["action"]), op.public_id, op, data)
+
+
+@console_view(methods=("GET", "POST"))
 def approvals(request: HttpRequest, ctx: Ctx) -> HttpResponse:
+    if request.method == "POST":
+        data = _body(request)
+        action = str(data.get("action", ""))
+        if action in OPERATOR_ACTIONS:
+            return problem("INVALID_REQUEST", 422, "use the operator's approvals route")
+        return _new_request(ctx, action, str(data.get("subject", "")).strip(), None, data)
     qs = ApprovalRequest.objects.select_related("operator", "requested_by", "decided_by").order_by(
         "-created_at"
     )
@@ -631,7 +689,7 @@ def decide_approval(
     note = str(_body(request).get("note", "")).strip()
     with transaction.atomic():
         a = (
-            ApprovalRequest.objects.select_for_update()
+            ApprovalRequest.objects.select_for_update(of=("self",))
             .select_related("operator", "requested_by")
             .filter(pk=_uuid(approval_id))
             .first()
@@ -656,9 +714,9 @@ def decide_approval(
             if not note:
                 return problem("NOTE_REQUIRED", 422)
             if decision == "approve":
-                if why := _preconditions(a.action, a.operator, a.payload):
+                if why := _preconditions(a):
                     return problem("PRECONDITION_FAILED", 422, why)
-                _execute(a)
+                _execute(a, ctx.staff)
                 a.status = ApprovalRequest.Status.APPROVED
             else:
                 a.status = ApprovalRequest.Status.REJECTED
@@ -671,19 +729,31 @@ def decide_approval(
         str(a.id),
         a.operator_id,
         approval_action=a.action,
+        subject=a.subject,
         note=note,
     )
     return JsonResponse(_approval(a))
 
 
-def _execute(a: ApprovalRequest) -> None:
-    op = Operator.objects.select_for_update().get(pk=a.operator_id)
-    if a.action == ApprovalRequest.Action.ENABLE_REAL_MONEY:
-        op.real_money_enabled = True
-        op.status = Operator.Status.LIVE
-    elif a.action == ApprovalRequest.Action.REACTIVATE_OPERATOR:
-        op.status = Operator.Status.LIVE if op.real_money_enabled else Operator.Status.SANDBOX
-    op.save(update_fields=["real_money_enabled", "status"])
+def _execute(a: ApprovalRequest, approver: PlatformStaff) -> None:
+    if a.action in OPERATOR_ACTIONS:
+        assert a.operator_id is not None  # operator actions always carry their operator
+        op = Operator.objects.select_for_update().get(pk=a.operator_id)
+        if a.action == ApprovalRequest.Action.ENABLE_REAL_MONEY:
+            op.real_money_enabled = True
+            op.status = Operator.Status.LIVE
+        else:
+            op.status = Operator.Status.LIVE if op.real_money_enabled else Operator.Status.SANDBOX
+        op.save(update_fields=["real_money_enabled", "status"])
+    elif a.action == ApprovalRequest.Action.APPROVE_RULESET:
+        rs = GameRuleset.objects.select_for_update().get(code=a.subject)
+        rs.status = GameRuleset.Status.APPROVED
+        rs.certification_ref = a.payload["certification_ref"].strip()
+        rs.approved_by = approver.email
+        rs.approved_at = timezone.now()
+        rs.save()
+    elif a.action == ApprovalRequest.Action.BIND_RULESET:
+        rulesets.bind(a.subject, GameRuleset.objects.get(code=a.payload["ruleset"]))
 
 
 # ---- Finance ----------------------------------------------------------------------------------
@@ -851,6 +921,130 @@ def resolve_discrepancy(request: HttpRequest, ctx: Ctx, item_id: str) -> HttpRes
         return problem("NOT_FOUND", 404)
     ctx.audit("discrepancy.resolved", item_id, note=note)
     return JsonResponse({"ok": True})
+
+
+# ---- Games: rulesets, streams, seed chains (doc 12 §3.3) ---------------------------------------
+
+
+def _ruleset(rs: GameRuleset) -> dict[str, Any]:
+    return {
+        "code": rs.code,
+        "formula": rs.formula,
+        "house_edge_bp": rs.house_edge_bp,
+        "rtp_bp": rs.rtp_bp,
+        "max_multiplier_x10000": rs.max_multiplier_x10000,
+        "status": rs.status,
+        "certification_ref": rs.certification_ref,
+        "notes": rs.notes,
+        "created_by": rs.created_by,
+        "approved_by": rs.approved_by,
+        "created_at": _iso(rs.created_at),
+        "approved_at": _iso(rs.approved_at),
+        "streams": list(
+            StreamConfig.objects.filter(ruleset=rs).values_list("stream_slug", flat=True)
+        ),
+    }
+
+
+@console_view("games.read", methods=("GET", "POST"))
+def game_rulesets(request: HttpRequest, ctx: Ctx) -> HttpResponse:
+    if request.method == "POST":
+        return _create_ruleset(request)
+    return JsonResponse(
+        {"rulesets": [_ruleset(r) for r in GameRuleset.objects.order_by("-created_at")]}
+    )
+
+
+@console_view("games.manage", methods=("POST",))
+def _create_ruleset(request: HttpRequest, ctx: Ctx) -> HttpResponse:
+    data = _body(request)
+    code = str(data.get("code", "")).strip().upper()
+    try:
+        edge = int(data.get("house_edge_bp", 0))
+        max_x = int(data.get("max_multiplier_x10000", 0))
+    except (TypeError, ValueError):
+        return problem("INVALID_REQUEST", 422)
+    if not code or not all(ch.isalnum() or ch in "-_." for ch in code) or len(code) > 40:
+        return problem("INVALID_REQUEST", 422, "code: letters, digits, - _ .")
+    if not 100 <= edge <= 1000:
+        return problem("CONFIG_NOT_PERMITTED", 422, "house edge must be 100..1000 bp (RTP 90-99%)")
+    if not 1_000_000 <= max_x <= 100_000_000 or max_x % 100:
+        return problem("CONFIG_NOT_PERMITTED", 422, "max multiplier 100x..10000x, 0.01x steps")
+    if GameRuleset.objects.filter(code=code).exists():
+        return problem("ALREADY_EXISTS", 409)
+    rs = GameRuleset.objects.create(
+        code=code,
+        house_edge_bp=edge,
+        max_multiplier_x10000=max_x,
+        notes=str(data.get("notes", ""))[:2000],
+        created_by=ctx.staff.email,
+    )
+    ctx.audit("ruleset.drafted", code, house_edge_bp=edge, max_multiplier_x10000=max_x)
+    return JsonResponse(_ruleset(rs), status=201)
+
+
+@console_view("games.read")
+def game_streams(request: HttpRequest, ctx: Ctx) -> HttpResponse:
+    out = []
+    for cfg in StreamConfig.objects.select_related("ruleset").order_by("stream_slug"):
+        last = (
+            GameRound.objects.filter(stream_slug=cfg.stream_slug)
+            .exclude(ruleset_code="")
+            .order_by("-number")
+            .first()
+        )
+        out.append(
+            {
+                "stream": cfg.stream_slug,
+                "desired": {"ruleset": cfg.ruleset_id, "version": cfg.version},
+                # What the engine actually journaled for its latest round (adoption is at the
+                # next round boundary, so the two differ briefly after a binding).
+                "applied": {
+                    "ruleset": last.ruleset_code,
+                    "version": last.ruleset_version,
+                    "round": last.number,
+                    "approved": last.ruleset_ok,
+                }
+                if last
+                else None,
+                "operators": Operator.objects.filter(stream_slug=cfg.stream_slug).count(),
+            }
+        )
+    return JsonResponse({"streams": out})
+
+
+@console_view("games.read")
+def seed_chains(request: HttpRequest, ctx: Ctx) -> HttpResponse:
+    """Public chain facts only. The encrypted root seed and checkpoints are never selected."""
+    chains: list[dict[str, Any]] = []
+    with connection.cursor() as cur:
+        cur.execute("SELECT to_regclass('rt.seed_chain') IS NOT NULL")
+        row = cur.fetchone()
+        if row and row[0]:
+            cur.execute(
+                """
+                SELECT c.chain_id::text, c.stream_id, c.length, c.terminal_hash, c.salt,
+                       c.salt_source, c.status, c.inserted_at,
+                       (SELECT max(r.chain_index) FROM rt.round r WHERE r.chain_id = c.chain_id)
+                  FROM rt.seed_chain c ORDER BY c.inserted_at DESC
+                """
+            )
+            for cid, stream, length, terminal, salt, source, status, at, used in cur.fetchall():
+                chains.append(
+                    {
+                        "chain_id": cid,
+                        "stream": stream,
+                        "length": length,
+                        "terminal_hash": terminal,
+                        "salt": salt,
+                        "salt_source": source,
+                        "status": status,
+                        "created_at": _iso(at),
+                        "rounds_used": used or 0,
+                        "usage_bp": int((used or 0) * 10000 // length) if length else 0,
+                    }
+                )
+    return JsonResponse({"seed_chains": chains})
 
 
 # ---- Rounds (read-only: there is deliberately no write path, AC-ADM-2) -------------------------

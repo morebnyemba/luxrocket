@@ -100,6 +100,10 @@ class GameRound(models.Model):
     house_edge_bp = models.IntegerField(null=True, blank=True)
     max_multiplier_x10000 = models.IntegerField(null=True, blank=True)
     outcome_verified = models.BooleanField(null=True)
+    # The ruleset Phoenix journaled for this round, and whether it matched an approved one.
+    ruleset_code = models.CharField(max_length=40, blank=True)
+    ruleset_version = models.PositiveIntegerField(null=True, blank=True)
+    ruleset_ok = models.BooleanField(null=True)
     settlement_status = models.CharField(
         max_length=16, choices=Settlement.choices, default=Settlement.OPEN
     )
@@ -190,3 +194,60 @@ class ProcessedEvent(models.Model):
 
     event_id = models.UUIDField(primary_key=True)
     processed_at = models.DateTimeField(auto_now_add=True)
+
+
+class GameRuleset(models.Model):
+    """Versioned game parameters (doc 12 §3.3). Immutable once approved (DB-enforced).
+
+    Only the house edge and maximum multiplier vary per ruleset: the curve (lambda) and formula
+    are fixed per deployment because the bit-identical curve table and vectors depend on them.
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT"
+        APPROVED = "APPROVED"
+        RETIRED = "RETIRED"
+
+    code = models.CharField(max_length=40, primary_key=True)
+    formula = models.CharField(max_length=20, default="LR-CRASH-1")
+    house_edge_bp = models.PositiveIntegerField()
+    max_multiplier_x10000 = models.BigIntegerField()
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
+    certification_ref = models.CharField(max_length=200, blank=True)
+    notes = models.TextField(blank=True)
+    created_by = models.CharField(max_length=200)
+    approved_by = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(house_edge_bp__gte=100, house_edge_bp__lte=1000),
+                name="ruleset_edge_bounds",  # 1%..10%: RTP 90%..99%
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    max_multiplier_x10000__gte=1_000_000, max_multiplier_x10000__lte=100_000_000
+                ),
+                name="ruleset_max_bounds",  # 100x..10000x (the curve table's ceiling)
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(status="APPROVED") | ~models.Q(certification_ref=""),
+                name="approved_ruleset_is_certified",
+            ),
+        ]
+
+    @property
+    def rtp_bp(self) -> int:
+        # LR-CRASH-1: P(crash >= m) = (1 - e) / m, so every target returns 1 - e (doc 07 §2).
+        return 10_000 - int(self.house_edge_bp)
+
+
+class StreamConfig(models.Model):
+    """The platform's desired binding per stream; Phoenix adopts it at the next round boundary."""
+
+    stream_slug = models.CharField(max_length=64, primary_key=True)
+    ruleset = models.ForeignKey(GameRuleset, on_delete=models.PROTECT)
+    version = models.PositiveIntegerField(default=1)
+    updated_at = models.DateTimeField(auto_now=True)

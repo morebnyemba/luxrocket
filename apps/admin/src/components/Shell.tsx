@@ -20,6 +20,7 @@ const NAV: { href: string; label: string; perm: string }[] = [
   { href: "/", label: "Overview", perm: "overview.read" },
   { href: "/operators", label: "Operators", perm: "operators.read" },
   { href: "/markets", label: "Markets", perm: "markets.read" },
+  { href: "/games", label: "Games", perm: "games.read" },
   { href: "/approvals", label: "Approvals", perm: "" },
   { href: "/finance", label: "Finance", perm: "finance.read" },
   { href: "/rounds", label: "Rounds", perm: "overview.read" },

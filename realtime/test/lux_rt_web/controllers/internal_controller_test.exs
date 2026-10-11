@@ -48,4 +48,22 @@ defmodule LuxRtWeb.InternalControllerTest do
     conn |> post_events([event]) |> json_response(200)
     assert_receive {:lr_private, "SESSION_REVOKED", %{reason: "OPERATOR_REVOKED"}}
   end
+
+  test "a ruleset binding for a stream not running here is accepted and ignored", %{conn: conn} do
+    event = %{
+      "event_id" => Ecto.UUID.generate(),
+      "type" => "stream.config",
+      "payload" => %{
+        "stream" => "not-running-here",
+        "version" => 2,
+        "ruleset" => %{
+          "code" => "LR-X",
+          "house_edge_bp" => 300,
+          "max_multiplier_x10000" => 1_000_000
+        }
+      }
+    }
+
+    assert %{"accepted" => 1} = conn |> post_events([event]) |> json_response(200)
+  end
 end

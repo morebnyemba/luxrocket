@@ -28,6 +28,7 @@ defmodule LuxRt.Rounds.Coordinator do
     :chain,
     :table,
     :rules,
+    :pending_rules,
     :timing,
     :round,
     seq: 0,
@@ -64,6 +65,19 @@ defmodule LuxRt.Rounds.Coordinator do
   @doc "Forward a stamped CASH_OUT command. Results arrive as private events."
   def cash_out(stream, cmd), do: :gen_statem.cast(via(stream), {:cash_out, cmd})
 
+  @doc """
+  A ruleset binding approved on the platform. It never changes the current round: the
+  coordinator keeps it pending and adopts it when it creates the next round (doc 12 §3.3).
+  """
+  def set_rules(stream, config) when is_binary(stream) do
+    case Registry.lookup(LuxRt.CoordinatorRegistry, stream) do
+      [] -> :ok
+      _ -> :gen_statem.cast(via(stream), {:set_rules, config})
+    end
+  end
+
+  def set_rules(_stream, _config), do: :ok
+
   @doc "The calling player's bets in the current round (for snapshots/resync)."
   def player_view(stream, session_id) do
     :gen_statem.call(via(stream), {:player_view, session_id}, 200)
@@ -81,7 +95,7 @@ defmodule LuxRt.Rounds.Coordinator do
     data = %__MODULE__{
       stream: stream,
       holder: "#{node()}/#{System.unique_integer([:positive])}",
-      rules: Map.new(Application.fetch_env!(:lux_rt, :ruleset)),
+      rules: default_rules(),
       timing: Map.new(Application.fetch_env!(:lux_rt, :timing)),
       table: Curve.default()
     }
@@ -98,7 +112,7 @@ defmodule LuxRt.Rounds.Coordinator do
     case Lease.acquire(data.stream, data.holder, data.timing.lease_ttl_ms) do
       {:ok, token} ->
         data = %{data | token: token, chain: SeedChain.load_or_create(data.stream)}
-        data = recover(data)
+        data = data |> recover() |> load_rules()
         Logger.info("coordinator for #{data.stream} active (fencing token #{token})")
         data = create_round(data, now())
         {:next_state, :betting_open, data, [renew_timer(data)]}
@@ -243,6 +257,27 @@ defmodule LuxRt.Rounds.Coordinator do
     {:keep_state, handle_cash_out(cmd, state, data)}
   end
 
+  def handle_event(:cast, {:set_rules, config}, _state, data) do
+    case parse_rules(config, data.table) do
+      {:ok, rules} ->
+        newest = max(data.rules.version, (data.pending_rules || %{version: 0}).version)
+
+        if rules.version > newest do
+          Logger.info(
+            "#{data.stream}: ruleset #{rules.code} v#{rules.version} pending for next round"
+          )
+
+          {:keep_state, %{data | pending_rules: rules}}
+        else
+          :keep_state_and_data
+        end
+
+      {:error, why} ->
+        Logger.error("#{data.stream}: refusing ruleset #{inspect(config)}: #{why}")
+        :keep_state_and_data
+    end
+  end
+
   def handle_event({:call, from}, {:player_view, session_id}, _state, data) do
     {:keep_state_and_data, [{:reply, from, player_bets(data, session_id)}]}
   end
@@ -344,6 +379,7 @@ defmodule LuxRt.Rounds.Coordinator do
   end
 
   defp create_round(data, opens_at) do
+    data = adopt_pending_rules(data)
     %{number: number, chain_index: k} = data.next
     chain = data.chain
     seed = SeedChain.round_seed(chain, k)
@@ -406,9 +442,107 @@ defmodule LuxRt.Rounds.Coordinator do
       chain_id: chain.chain_id,
       chain_index: k,
       house_edge_bp: data.rules.house_edge_bp,
-      max_multiplier_x10000: data.rules.max_multiplier_x10000
+      max_multiplier_x10000: data.rules.max_multiplier_x10000,
+      ruleset_code: data.rules.code,
+      ruleset_version: data.rules.version
     })
   end
+
+  # ---- rulesets ------------------------------------------------------------------------------
+
+  # Static, deployment-level game parameters (panels, curve, ...). A ruleset only overrides
+  # code, version, house edge and max multiplier on top of these.
+  defp static_rules, do: Map.new(Application.fetch_env!(:lux_rt, :ruleset))
+
+  defp default_rules do
+    r = static_rules()
+    Map.merge(r, %{code: Map.get(r, :code, "LR-STD-97"), version: 0})
+  end
+
+  defp adopt_pending_rules(%{pending_rules: nil} = data), do: data
+
+  defp adopt_pending_rules(%{pending_rules: rules} = data) do
+    Logger.info(
+      "#{data.stream}: adopting ruleset #{rules.code} v#{rules.version} at round boundary"
+    )
+
+    %{data | rules: rules, pending_rules: nil}
+  end
+
+  # Boot order: the platform's current binding; else the rules the last round was journaled with;
+  # else the static default. The coordinator never invents rules.
+  defp load_rules(data) do
+    with {:ok, config} <- platform_client().stream_config(data.stream),
+         {:ok, rules} <- parse_rules(config, data.table) do
+      %{data | rules: rules}
+    else
+      _ ->
+        case last_journaled_rules(data.stream) do
+          {:ok, rules} ->
+            Logger.warning("#{data.stream}: platform unreachable; using last journaled ruleset")
+            %{data | rules: rules}
+
+          :none ->
+            data
+        end
+    end
+  end
+
+  defp last_journaled_rules(stream) do
+    %{rows: rows} =
+      Repo.query!(
+        """
+        SELECT payload FROM rt.round_journal
+         WHERE stream_id = $1 AND type = 'ROUND_CREATED' ORDER BY stream_seq DESC LIMIT 1
+        """,
+        [stream]
+      )
+
+    with [[payload]] <- rows,
+         {:ok, rules} <-
+           parse_rules(
+             %{
+               "version" => payload["ruleset_version"] || 0,
+               "ruleset" => %{
+                 "code" => payload["ruleset_code"] || "LR-STD-97",
+                 "house_edge_bp" => payload["house_edge_bp"],
+                 "max_multiplier_x10000" => payload["max_multiplier_x10000"]
+               }
+             },
+             nil
+           ) do
+      {:ok, rules}
+    else
+      _ -> :none
+    end
+  end
+
+  @doc false
+  def parse_rules(%{"version" => v, "ruleset" => r}, table) when is_integer(v) and is_map(r) do
+    edge = r["house_edge_bp"]
+    max = r["max_multiplier_x10000"]
+    code = r["code"]
+    ceiling = if table, do: Curve.at(table, Curve.length(table) - 1), else: max
+
+    cond do
+      not (is_binary(code) and code != "") ->
+        {:error, "missing code"}
+
+      not (is_integer(edge) and edge > 0 and edge < 10_000) ->
+        {:error, "house edge out of range"}
+
+      not (is_integer(max) and rem(max, 100) == 0 and max >= 10_100) ->
+        {:error, "bad max multiplier"}
+
+      max > ceiling ->
+        {:error, "max multiplier beyond the curve table"}
+
+      true ->
+        {:ok, %{code: code, version: v, house_edge_bp: edge, max_multiplier_x10000: max}}
+    end
+  end
+
+  def parse_rules(_config, _table), do: {:error, "malformed"}
 
   defp finish_crash(data) do
     r = data.round
@@ -906,7 +1040,8 @@ defmodule LuxRt.Rounds.Coordinator do
   defp curve_info(data) do
     %{
       kind: "exp",
-      lambda_per_ms: data.rules.curve_lambda_per_ms,
+      # Fixed per deployment (the curve table and shared vectors depend on it), not per ruleset.
+      lambda_per_ms: Application.fetch_env!(:lux_rt, :ruleset)[:curve_lambda_per_ms],
       table_hash: Curve.sha256(data.table)
     }
   end

@@ -18,6 +18,16 @@ defmodule LuxRt.PlatformStub do
     :ok
   end
 
+  def set_stream_config(config),
+    do: Agent.update(__MODULE__, &Map.put(&1, :stream_config, config))
+
+  def stream_config(_stream) do
+    case Agent.get(__MODULE__, &Map.get(&1, :stream_config)) do
+      nil -> {:error, :unavailable}
+      config -> {:ok, config}
+    end
+  end
+
   def consume_ticket("good-ticket"), do: {:ok, session("ses_test", "global")}
   def consume_ticket(_), do: {:error, 401}
 

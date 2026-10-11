@@ -9,8 +9,9 @@ import { api } from "@/lib/api";
 type Approval = {
   id: string;
   action: string;
-  operator: string;
-  operator_name: string;
+  subject: string;
+  operator: string | null;
+  operator_name: string | null;
   payload: Record<string, string>;
   reason: string;
   requested_by: string;
@@ -68,12 +69,12 @@ function Body() {
       </p>
       {error && <Notice tone="critical">{error}</Notice>}
       {data && (
-        <Table head={["Requested", "Action", "Operator", "Evidence / reason", "By", "Status", "Decision"]} empty={!data.approvals.length}>
+        <Table head={["Requested", "Action", "Subject", "Evidence / reason", "By", "Status", "Decision"]} empty={!data.approvals.length}>
           {data.approvals.map((a) => (
             <tr key={a.id}>
               <td className="text-xs">{when(a.created_at)}</td>
               <td>{a.action}</td>
-              <td>{a.operator_name}<div><Mono>{a.operator}</Mono></div></td>
+              <td>{a.operator_name ?? a.subject}{a.operator && <div><Mono>{a.operator}</Mono></div>}</td>
               <td className="text-xs">
                 {a.reason}
                 {Object.entries(a.payload).map(([k, v]) => (
