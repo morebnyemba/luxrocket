@@ -12,9 +12,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# CI databases are throwaway service containers with trust auth: no credentials in the repo.
 env:
   POSTGRES_USER: luxrocket
-  POSTGRES_PASSWORD: luxrocket-dev-only
+  POSTGRES_PASSWORD: ""
   POSTGRES_HOST: localhost
   POSTGRES_PORT: "5432"
 
@@ -27,7 +28,7 @@ jobs:
         image: postgres:16-alpine
         env:
           POSTGRES_USER: luxrocket
-          POSTGRES_PASSWORD: luxrocket-dev-only
+          POSTGRES_HOST_AUTH_METHOD: trust
           POSTGRES_DB: luxrocket
         ports: ["5432:5432"]
         options: >-
@@ -55,7 +56,7 @@ jobs:
         image: postgres:16-alpine
         env:
           POSTGRES_USER: luxrocket
-          POSTGRES_PASSWORD: luxrocket-dev-only
+          POSTGRES_HOST_AUTH_METHOD: trust
           POSTGRES_DB: luxrocket
         ports: ["5432:5432"]
         options: >-
@@ -128,7 +129,7 @@ jobs:
       - run: make e2e
       - run: make invariants
       - if: failure()
-        run: SEED_KEK_B64=x docker compose -f infra/compose/docker-compose.yml --profile app logs --no-color --tail 200
+        run: docker compose -f infra/compose/docker-compose.yml --env-file .demo/stack.env --profile app logs --no-color --tail 200
 
   secrets:
     name: Secret scan

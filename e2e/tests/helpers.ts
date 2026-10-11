@@ -1,12 +1,22 @@
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, type Page } from "@playwright/test";
 
 const backend = resolve(import.meta.dirname, "../../backend");
-const env = { ...process.env, DJANGO_DEBUG: "1" };
-// `make stack` writes the demo operator key to .demo/; host-run dev setups use .demo-operator.key.
 const repo = resolve(import.meta.dirname, "../..");
+// `make stack` generates the stack's credentials in .demo/stack.env (git-ignored).
+const stackEnvFile = resolve(repo, ".demo/stack.env");
+const stackEnv: Record<string, string> = existsSync(stackEnvFile)
+  ? Object.fromEntries(
+      readFileSync(stackEnvFile, "utf8")
+        .split("\n")
+        .filter((l) => l.includes("="))
+        .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]),
+    )
+  : {};
+const env = { ...process.env, ...stackEnv, DJANGO_DEBUG: "1" };
+// `make stack` writes the demo operator key to .demo/; host-run dev setups use .demo-operator.key.
 const keyFile =
   process.env.LR_DEMO_KEY ??
   [resolve(repo, ".demo/operator.key"), resolve(repo, ".demo-operator.key")].find((p) => existsSync(p)) ??

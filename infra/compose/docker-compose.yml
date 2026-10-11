@@ -4,13 +4,13 @@ name: luxrocket
 
 x-backend-env: &backend-env
   DJANGO_DEBUG: "1"                     # sandbox/dev stack only; production sets 0
-  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-local-stack-only-change-me}
+  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?run make stack}
   DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,api"
   POSTGRES_HOST: postgres
   POSTGRES_DB: ${POSTGRES_DB:-luxrocket}
   POSTGRES_USER: ${POSTGRES_USER:-luxrocket}
-  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-luxrocket-dev-only}
-  INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-stack-internal-token}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run make stack (generates .demo/stack.env)}
+  INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?run make stack}
   GAME_ORIGIN: http://localhost:3000
   PLAY_BASE_URL: http://localhost:3000
   REALTIME_INTERNAL_URL: http://realtime:4000
@@ -21,7 +21,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-luxrocket}
       POSTGRES_USER: ${POSTGRES_USER:-luxrocket}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-luxrocket-dev-only}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run make stack (generates .demo/stack.env)}
     ports: ["127.0.0.1:5432:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
@@ -39,7 +39,7 @@ services:
     image: rabbitmq:3.13-management-alpine
     environment:
       RABBITMQ_DEFAULT_USER: luxrocket
-      RABBITMQ_DEFAULT_PASS: luxrocket-dev-only
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD}
       RABBITMQ_DEFAULT_VHOST: luxrocket
     ports: ["127.0.0.1:5672:5672", "127.0.0.1:15672:15672"]
     profiles: ["infra"]
@@ -72,15 +72,15 @@ services:
   realtime:
     build: { context: ../../realtime }
     environment:
-      DATABASE_URL: ecto://${POSTGRES_USER:-luxrocket}:${POSTGRES_PASSWORD:-luxrocket-dev-only}@postgres/${POSTGRES_DB:-luxrocket}
-      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-local-stack-only-secret-key-base-change-me-0123456789abcdef0123456789}
-      SEED_KEK_B64: ${SEED_KEK_B64:?set SEED_KEK_B64 (32 random bytes, base64) — make stack does this}
+      DATABASE_URL: ecto://${POSTGRES_USER:-luxrocket}:${POSTGRES_PASSWORD:?run make stack (generates .demo/stack.env)}@postgres/${POSTGRES_DB:-luxrocket}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?run make stack}
+      SEED_KEK_B64: ${SEED_KEK_B64:?run make stack}
       SEED_CHAIN_LENGTH: "100000"
       PHX_HOST: localhost
       PHX_SERVER: "true"
       PORT: "4000"
       PLATFORM_INTERNAL_URL: http://api:8000
-      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-stack-internal-token}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?run make stack}
       GAME_ORIGINS: http://localhost:3000
     command: ["sh", "-c", "/app/bin/lux_rt eval 'LuxRt.Release.migrate()' && exec /app/bin/lux_rt start"]
     ports: ["127.0.0.1:4000:4000"]
