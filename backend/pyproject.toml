@@ -57,6 +57,7 @@ files = [
     "luxrocket/wallet/seamless.py",
     "luxrocket/wallet/simulator.py",
     "luxrocket/wallet/conformance.py",
+    "luxrocket/operators/webhooks.py",
 ]
 
 [tool.django-stubs]

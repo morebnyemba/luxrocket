@@ -84,6 +84,8 @@ class Ledger:
             CREATE TABLE IF NOT EXISTS account (
               player_id TEXT, currency TEXT, balance INTEGER NOT NULL CHECK (balance >= 0),
               PRIMARY KEY (player_id, currency));
+            CREATE TABLE IF NOT EXISTS webhook_event (
+              event_id TEXT PRIMARY KEY, type TEXT, body TEXT, received INTEGER DEFAULT 1);
             CREATE TABLE IF NOT EXISTS tx (
               transaction_id TEXT PRIMARY KEY, kind TEXT, player_id TEXT, currency TEXT,
               amount INTEGER, response TEXT, tombstone INTEGER DEFAULT 0);
@@ -107,6 +109,27 @@ class Ledger:
             (delta, player, ccy),
         )
         return self._balance(player, ccy)
+
+    def record_event(self, event: dict[str, Any]) -> bool:
+        """Webhook consumer: dedupe by event_id (delivery is at-least-once). True if new."""
+        with self.lock:
+            self.db.execute(
+                "INSERT INTO webhook_event (event_id, type, body) VALUES (?,?,?) "
+                "ON CONFLICT(event_id) DO UPDATE SET received = received + 1",
+                (event["event_id"], event["type"], json.dumps(event)),
+            )
+            row = self.db.execute(
+                "SELECT received FROM webhook_event WHERE event_id=?", (event["event_id"],)
+            ).fetchone()
+            return bool(row and row[0] == 1)
+
+    def events(self, type_: str | None = None) -> list[dict[str, Any]]:
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT body FROM webhook_event WHERE ?1 IS NULL OR type = ?1 ORDER BY rowid",
+                (type_,),
+            ).fetchall()
+        return [json.loads(r[0]) for r in rows]
 
     def balance(self, player: str, ccy: str) -> int:
         with self.lock:
@@ -212,7 +235,7 @@ class Verifier:
         return True
 
 
-OPS = {"debit", "credit", "rollback", "balance"}
+OPS = {"debit", "credit", "rollback", "balance", "webhooks"}
 
 
 def make_handler(ledger: Ledger, verifier: Verifier, faults: Faults, prefix: str) -> type:
@@ -249,6 +272,16 @@ def make_handler(ledger: Ledger, verifier: Verifier, faults: Faults, prefix: str
                 req = json.loads(body)
             except ValueError:
                 self._send(400, {"error": "bad json"})
+                return
+            if op == "webhooks":
+                new = ledger.record_event(req)
+                log.info(
+                    "webhook %s %s%s",
+                    req.get("type"),
+                    req.get("event_id"),
+                    "" if new else " (duplicate)",
+                )
+                self._send(200, {"received": True})
                 return
             if op == "balance":
                 bal = ledger.balance(req["player_id"], req["currency"])

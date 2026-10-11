@@ -162,3 +162,57 @@ class OperatorJurisdiction(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["operator", "country_code"], name="uniq_op_country")
         ]
+
+
+class WebhookEndpoint(models.Model):
+    """Where we notify an operator of settlement events (doc 09 §7)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    operator = models.ForeignKey(Operator, on_delete=models.CASCADE, related_name="webhooks")
+    url = models.CharField(max_length=500)
+    enabled = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["operator", "url"], name="uniq_webhook_url")]
+
+    def clean(self) -> None:
+        from django.core.exceptions import ValidationError
+
+        from luxrocket.wallet.seamless import WalletConfigError, validate_base_url
+
+        try:
+            validate_base_url(self.url)
+        except WalletConfigError as exc:
+            raise ValidationError({"url": str(exc).replace("wallet base", "webhook")}) from exc
+
+
+class WebhookDelivery(models.Model):
+    """Transactional outbox of webhook events, one row per (event, endpoint)."""
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING"
+        DELIVERED = "DELIVERED"
+        FAILED = "FAILED"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    event_id = models.CharField(max_length=40, db_index=True)
+    endpoint = models.ForeignKey(
+        WebhookEndpoint, on_delete=models.CASCADE, related_name="deliveries"
+    )
+    operator = models.ForeignKey(Operator, on_delete=models.CASCADE)
+    type = models.CharField(max_length=40)
+    payload = models.JSONField()
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    attempts = models.PositiveIntegerField(default=0)
+    next_attempt_at = models.DateTimeField()
+    last_status_code = models.PositiveSmallIntegerField(null=True, blank=True)
+    last_error = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["status", "next_attempt_at"])]
+        constraints = [
+            models.UniqueConstraint(fields=["event_id", "endpoint"], name="uniq_event_endpoint")
+        ]

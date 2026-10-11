@@ -9,6 +9,7 @@ from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 
 from luxrocket.operators.signing import prune_nonces
+from luxrocket.operators.webhooks import deliver_due
 from luxrocket.wallet import worker
 from luxrocket.wallet.outbox import relay_once
 
@@ -16,7 +17,7 @@ log = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Run the wallet worker and outbox relay until stopped."
+    help = "Run the wallet worker, outbox relay and webhook delivery until stopped."
 
     def add_arguments(self, parser: Any) -> None:
         parser.add_argument("--interval", type=float, default=0.2)
@@ -38,6 +39,7 @@ class Command(BaseCommand):
                 worker.process_pending()
                 while relay_once():
                     pass
+                deliver_due()
                 if time.monotonic() - last_prune > 60:
                     prune_nonces()
                     last_prune = time.monotonic()

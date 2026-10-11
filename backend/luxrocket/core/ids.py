@@ -36,3 +36,8 @@ def public_id(prefix: str, u: uuid.UUID) -> str:
 def deterministic_tx_id(bet_id: uuid.UUID, tx_type: str) -> uuid.UUID:
     """Transaction ids are a pure function of (bet, type): re-deriving can never mint a new id."""
     return uuid.uuid5(uuid.NAMESPACE_URL, f"luxrocket:tx:{bet_id}:{tx_type}")
+
+
+def tx_public_id(tx_id: uuid.UUID | str) -> str:
+    """The one wire form of a wallet transaction id (wallet calls, operator API, webhooks)."""
+    return public_id("tx", tx_id if isinstance(tx_id, uuid.UUID) else uuid.UUID(str(tx_id)))

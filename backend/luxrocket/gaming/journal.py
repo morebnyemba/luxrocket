@@ -13,11 +13,13 @@ from typing import Any
 
 from django.conf import settings
 from django.db import transaction
+from django.utils import timezone
 
 from luxrocket.core import outcome
 from luxrocket.core.ids import deterministic_tx_id
 from luxrocket.core.multiplier import payout_minor
 from luxrocket.gaming.models import Bet, GameRound, ProcessedEvent, StreamCursor
+from luxrocket.operators import webhooks
 from luxrocket.wallet import ledger
 from luxrocket.wallet.models import Settlement, WalletTransaction
 
@@ -198,9 +200,13 @@ def on_round_crashed(round_id: uuid.UUID, stream: str, p: dict[str, Any]) -> Non
             bet.save(update_fields=["status", "updated_at"])
             ledger.lost(bet)
             # Phoenix notifies the player of the loss directly; no wallet call is needed.
-            Settlement.objects.create(
-                bet=bet, outcome=Settlement.Outcome.LOSS, status=Settlement.Status.CONFIRMED
+            loss = Settlement.objects.create(
+                bet=bet,
+                outcome=Settlement.Outcome.LOSS,
+                status=Settlement.Status.CONFIRMED,
+                confirmed_at=timezone.now(),
             )
+            webhooks.bet_settled(bet, loss)
         elif bet.status in (Bet.Status.DEBITED, Bet.Status.PENDING_DEBIT):
             exclude_bet(bet, "NOT_ADMITTED")
         elif bet.status == Bet.Status.CASHED_OUT and bet.cashout_x10000 is not None:
@@ -258,7 +264,15 @@ def refresh_round_settlement(round_id: uuid.UUID) -> None:
         status__in=[WalletTransaction.Status.PENDING, WalletTransaction.Status.UNKNOWN],
     ).exists()
     if not open_bets and not pending:
-        GameRound.objects.filter(pk=round_id).update(settlement_status=GameRound.Settlement.SETTLED)
+        with transaction.atomic():
+            # Conditional update: only the transition to SETTLED emits round.settled.
+            changed = (
+                GameRound.objects.filter(pk=round_id)
+                .exclude(settlement_status=GameRound.Settlement.SETTLED)
+                .update(settlement_status=GameRound.Settlement.SETTLED)
+            )
+            if changed:
+                webhooks.round_settled(rnd)
 
 
 HANDLERS = {

@@ -63,7 +63,7 @@ stack: $(STACK_ENV) ## Build and run the full sandbox stack (game on :3000, API 
 	@echo "Stack ready. Get a launch link: make demo-launch  ·  embed demo: http://localhost:8000/demo/operator"
 
 stack-seamless: $(STACK_ENV) ## Full stack with the demo operator on the reference Seamless Wallet v1 (signed HTTP)
-	DEMO_WALLET_URL=http://wallet-sim:8090/wallet $(MAKE) stack
+	DEMO_WALLET_URL=http://wallet-sim:8090/wallet DEMO_WEBHOOK_URL=http://wallet-sim:8090/wallet/webhooks $(MAKE) stack
 	$(COMPOSE) --profile app up -d wallet-sim
 
 wallet-conformance: ## Run the Seamless Wallet v1 conformance suite (URL=..., default: the reference wallet)

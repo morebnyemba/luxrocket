@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.luxrocket.example/operator/v1/webhook.schema.json",
+  "title": "Webhook event (platform -> operator)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "type", "occurred_at", "operator_id", "api_version", "data"],
+  "properties": {
+    "event_id": { "type": "string", "pattern": "^evt_[0-9a-z]{26}$" },
+    "type": {
+      "enum": ["bet.settled", "round.settled", "transaction.needs_attention"],
+      "description": "Open enum: consumers MUST ignore types they do not know"
+    },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "operator_id": { "type": "string" },
+    "api_version": { "const": "v1" },
+    "data": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "bet.settled" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/bet_settled" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "round.settled" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/round_settled" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "transaction.needs_attention" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/transaction_needs_attention" } } }
+    }
+  ],
+  "$defs": {
+    "minor": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,17})$" },
+    "transaction": {
+      "type": "object",
+      "required": ["transaction_id", "type", "amount", "status"],
+      "properties": {
+        "transaction_id": { "type": "string", "pattern": "^tx_[0-9a-z]{26}$" },
+        "type": { "enum": ["DEBIT", "CREDIT", "ROLLBACK"] },
+        "amount": { "$ref": "#/$defs/minor" },
+        "status": { "type": "string" }
+      }
+    },
+    "bet_settled": {
+      "type": "object",
+      "required": ["bet_id", "round_id", "player_id", "currency", "stake", "outcome", "payout", "transactions"],
+      "properties": {
+        "bet_id": { "type": "string" },
+        "round_id": { "type": "string" },
+        "player_id": { "type": "string" },
+        "panel": { "type": "integer", "minimum": 0 },
+        "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+        "stake": { "$ref": "#/$defs/minor" },
+        "outcome": { "enum": ["WIN", "LOSS", "REFUND"] },
+        "multiplier_x10000": { "type": ["integer", "null"] },
+        "payout": { "$ref": "#/$defs/minor" },
+        "transactions": { "type": "array", "items": { "$ref": "#/$defs/transaction" } }
+      }
+    },
+    "round_settled": {
+      "type": "object",
+      "required": ["round_id", "end_state", "bets", "totals"],
+      "properties": {
+        "round_id": { "type": "string" },
+        "end_state": { "enum": ["CRASHED", "VOIDED"] },
+        "crash_x10000": { "type": ["integer", "null"] },
+        "bets": { "type": "integer", "minimum": 0 },
+        "totals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["currency", "stake", "payout"],
+            "properties": {
+              "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+              "stake": { "$ref": "#/$defs/minor" },
+              "payout": { "$ref": "#/$defs/minor" }
+            }
+          }
+        }
+      }
+    },
+    "transaction_needs_attention": {
+      "type": "object",
+      "required": ["transaction", "bet_id", "player_id", "currency", "operator_code"],
+      "properties": {
+        "transaction": { "$ref": "#/$defs/transaction" },
+        "bet_id": { "type": "string" },
+        "player_id": { "type": "string" },
+        "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+        "operator_code": { "type": "string" }
+      }
+    }
+  }
+}

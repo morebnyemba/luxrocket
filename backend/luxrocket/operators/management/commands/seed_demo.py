@@ -17,6 +17,7 @@ from luxrocket.operators.models import (
     OperatorDomain,
     OperatorJurisdiction,
     WalletKind,
+    WebhookEndpoint,
 )
 
 DEMO_COUNTRIES = ["ZW", "ZM", "BW", "ZA", "MZ", "MW", "NA"]
@@ -33,6 +34,7 @@ class Command(BaseCommand):
             default="",
             help="route the demo operator to a Seamless Wallet v1 endpoint (e.g. the simulator)",
         )
+        parser.add_argument("--webhook-url", default="", help="register a webhook endpoint")
 
     @transaction.atomic
     def handle(self, *args: Any, **opts: Any) -> None:
@@ -49,6 +51,11 @@ class Command(BaseCommand):
         else:
             operator.wallet_kind = WalletKind.SIMULATED
         operator.save(update_fields=["wallet_kind", "wallet_base_url"])
+        WebhookEndpoint.objects.filter(operator=operator).update(enabled=False)
+        if opts["webhook_url"]:
+            WebhookEndpoint.objects.update_or_create(
+                operator=operator, url=opts["webhook_url"], defaults={"enabled": True}
+            )
         for code in DEMO_COUNTRIES:
             OperatorJurisdiction.objects.get_or_create(operator=operator, country_code=code)
         OperatorDomain.objects.get_or_create(operator=operator, origin=opts["origin"])

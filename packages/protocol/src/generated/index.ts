@@ -1,6 +1,7 @@
 /* Generated from /contracts by packages/protocol/scripts/generate.mjs. Do not edit. */
 export type { OperatorV1SessionCreateRequest } from "./operator_v1_session_create_request";
 export type { OperatorV1SessionCreateResponse } from "./operator_v1_session_create_response";
+export type { OperatorV1Webhook } from "./operator_v1_webhook";
 export type { WalletV1BalanceRequest } from "./wallet_v1_balance_request";
 export type { WalletV1BalanceResponse } from "./wallet_v1_balance_response";
 export type { WalletV1CreditRequest } from "./wallet_v1_credit_request";

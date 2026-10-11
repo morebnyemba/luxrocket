@@ -42,12 +42,13 @@ services:
     <<: *backend
     # DEMO_WALLET_URL empty: built-in simulated wallet. `make stack-seamless` routes the demo
     # operator to the reference Seamless Wallet v1 server below over signed HTTP instead.
-    command: ["sh", "-c", "python manage.py migrate --noinput && python manage.py seed_demo --key-out /demo/operator.key --origin http://localhost:8000 --wallet-url \"$$DEMO_WALLET_URL\""]
+    command: ["sh", "-c", "python manage.py migrate --noinput && python manage.py seed_demo --key-out /demo/operator.key --origin http://localhost:8000 --wallet-url \"$$DEMO_WALLET_URL\" --webhook-url \"$$DEMO_WEBHOOK_URL\""]
     environment:
       DJANGO_DEBUG: "1"
       DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,api"
       POSTGRES_HOST: postgres
       DEMO_WALLET_URL: ${DEMO_WALLET_URL:-}
+      DEMO_WEBHOOK_URL: ${DEMO_WEBHOOK_URL:-}
     volumes: ["../../.demo:/demo"]
     # Local tooling only: writes the demo operator key into the host-mounted ./.demo directory.
     user: root
@@ -66,7 +67,8 @@ services:
     depends_on: { migrate: { condition: service_completed_successfully } }
     profiles: ["app"]
 
-  # Reference operator wallet (LUX Seamless Wallet v1) with optional fault injection.
+  # Reference operator wallet (LUX Seamless Wallet v1, plus a webhook consumer at /wallet/webhooks)
+  # with optional fault injection.
   wallet-sim:
     build: { context: ../.., dockerfile: backend/Dockerfile }
     command:

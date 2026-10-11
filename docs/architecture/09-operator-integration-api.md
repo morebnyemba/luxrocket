@@ -242,6 +242,18 @@ Delivered `POST` to registered URLs, signed (§3), at-least-once, retried 1 m, 5
   }
 }
 ```
+**As built (v1):** event types `bet.settled`, `round.settled`, `transaction.needs_attention`
+(schema: `contracts/operator/v1/webhook.schema.json`; the type enum is open — ignore unknown types).
+- Signed with LR1 (§3) using the platform key, plus `LR-Event-Id` / `LR-Event-Type` headers. Any 2xx acknowledges.
+- Events are written in the same database transaction as the state change (outbox), then delivered
+  at-least-once: immediately, then retried after 1 m, 5 m, 15 m, 1 h, 6 h, 24 h; after that `FAILED`
+  (re-queue from the back-office).
+- `event_id` is **deterministic** per (type, subject, operator): the same fact always carries the same id,
+  so dedupe on it and re-emission can never produce a second event.
+- `bet.settled` fires when the settlement is final (LOSS at crash; WIN/REFUND when the wallet confirms).
+  `round.settled` carries per-currency `stake` and `payout` totals for your bets only; `payout` includes
+  refunded stakes, so `stake − payout` is your round result. Transaction ids match the wallet calls.
+
 Example `bet.settled.data`: `{ "bet_id", "round_id", "player_id", "currency", "stake": "500", "outcome": "WIN", "multiplier_x10000": 23456, "payout": "1172", "transactions": ["tx_…","tx_…"] }`.
 
 ## 8. Settlement response (operator queries a bet)

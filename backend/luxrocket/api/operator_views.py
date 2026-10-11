@@ -16,6 +16,7 @@ from django.views.decorators.http import require_http_methods
 from luxrocket.api.http import BadJson, json_body
 from luxrocket.core import contracts
 from luxrocket.core.errors import problem
+from luxrocket.core.ids import tx_public_id
 from luxrocket.gaming import sessions
 from luxrocket.gaming.models import Bet, GameRound, GameSession
 from luxrocket.operators.models import IdempotencyRecord, Operator
@@ -150,7 +151,7 @@ def bet_view(bet: Bet, include_player: bool = False) -> dict[str, Any]:
         "created_at": bet.created_at.isoformat(),
         "transactions": [
             {
-                "transaction_id": f"tx_{t.id.hex}",
+                "transaction_id": tx_public_id(t.id),
                 "type": t.type,
                 "amount": str(t.amount_minor),
                 "status": t.status,

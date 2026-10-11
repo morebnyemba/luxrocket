@@ -18,7 +18,7 @@ import httpx
 from django.conf import settings
 
 from luxrocket.core import contracts
-from luxrocket.core.ids import b32, deterministic_tx_id
+from luxrocket.core.ids import deterministic_tx_id, tx_public_id
 from luxrocket.core.lr1 import platform_sign_headers
 from luxrocket.wallet.adapters import WalletResult
 
@@ -38,9 +38,8 @@ class WalletConfigError(ValueError):
     pass
 
 
-def tx_ref(tx_id: object) -> str:
-    """Wire form of our transaction ids: tx_<26 base32> (contract pattern)."""
-    return f"tx_{b32(tx_id if isinstance(tx_id, uuid.UUID) else uuid.UUID(str(tx_id)))}"
+def tx_ref(tx_id: uuid.UUID | str) -> str:
+    return tx_public_id(tx_id)
 
 
 def validate_base_url(url: str) -> str:
@@ -150,7 +149,7 @@ class SeamlessWalletAdapter:
         out: dict[str, Any] = {
             "transaction_id": tx_ref(tx.id),
             "bet_id": bet.public_id,
-            "round_id": f"rnd_{b32(bet.round_id)}",
+            "round_id": str(bet.round_id),  # same form as the operator API
             "player_id": bet.player.external_player_id,
             "currency": tx.currency,
             "amount": str(tx.amount_minor),

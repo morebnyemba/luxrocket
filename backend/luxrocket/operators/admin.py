@@ -7,6 +7,8 @@ from luxrocket.operators.models import (
     OperatorCurrencyLimit,
     OperatorDomain,
     OperatorJurisdiction,
+    WebhookDelivery,
+    WebhookEndpoint,
 )
 
 
@@ -25,6 +27,11 @@ class JurisdictionInline(admin.TabularInline):  # type: ignore[type-arg]
     extra = 0
 
 
+class WebhookInline(admin.TabularInline):  # type: ignore[type-arg]
+    model = WebhookEndpoint
+    extra = 0
+
+
 @admin.register(Operator)
 class OperatorAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
     list_display = (
@@ -38,7 +45,7 @@ class OperatorAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
     list_filter = ("status", "real_money_enabled", "wallet_kind")
     search_fields = ("legal_name", "public_id")
     readonly_fields = ("public_id", "real_money_enabled")  # real money only via approval flow
-    inlines = [LimitInline, DomainInline, JurisdictionInline]
+    inlines = [LimitInline, DomainInline, JurisdictionInline, WebhookInline]
 
 
 @admin.register(OperatorCredential)
@@ -58,3 +65,27 @@ class MarketAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
 
     list_display = ("country_code", "status", "evidence_ref", "changed_at")
     list_filter = ("status",)
+
+
+@admin.register(WebhookDelivery)
+class WebhookDeliveryAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+    """Delivery log (doc 09 §7). Re-queue a FAILED delivery by setting it back to PENDING."""
+
+    list_display = ("event_id", "type", "operator", "status", "attempts", "last_status_code")
+    list_filter = ("status", "type")
+    search_fields = ("event_id",)
+    readonly_fields = (
+        "event_id",
+        "endpoint",
+        "operator",
+        "type",
+        "payload",
+        "attempts",
+        "last_status_code",
+        "last_error",
+        "created_at",
+        "delivered_at",
+    )
+
+    def has_add_permission(self, request, obj=None):  # type: ignore[no-untyped-def]
+        return False

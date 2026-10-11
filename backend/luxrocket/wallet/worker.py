@@ -10,6 +10,7 @@ from django.utils import timezone
 from luxrocket.core.ids import deterministic_tx_id
 from luxrocket.gaming.journal import refresh_round_settlement
 from luxrocket.gaming.models import Bet
+from luxrocket.operators import webhooks
 from luxrocket.wallet import ledger
 from luxrocket.wallet.adapters import WalletResult, adapter_for
 from luxrocket.wallet.models import Settlement, WalletTransaction, WalletTxAttempt
@@ -86,9 +87,12 @@ def _process(tx_id: object) -> bool:
             # A credit or rollback must never be refused (doc 01 §2): human attention required.
             tx.status = WalletTransaction.Status.NEEDS_ATTENTION
             log.critical("wallet %s %s needs attention: %s", tx.type, tx.id, result.code)
-        else:
-            tx.status = WalletTransaction.Status.UNKNOWN
-            tx.next_attempt_at = timezone.now() + timedelta(seconds=_next_delay(tx.attempt_count))
+            tx.operator_code = result.code
+            tx.save()
+            webhooks.transaction_needs_attention(tx)
+            return False
+        tx.status = WalletTransaction.Status.UNKNOWN
+        tx.next_attempt_at = timezone.now() + timedelta(seconds=_next_delay(tx.attempt_count))
         tx.operator_code = result.code
         tx.save()
         return False
@@ -106,9 +110,7 @@ def _on_success(tx: WalletTransaction, bet: Bet, result: WalletResult) -> None:
         payload["balance"] = str(result.balance_minor)
     if tx.type == WalletTransaction.Type.CREDIT:
         ledger.credit_ok(bet, tx.amount_minor)
-        Settlement.objects.filter(bet=bet).update(
-            status=Settlement.Status.CONFIRMED, confirmed_at=now
-        )
+        _confirm(bet, now)
         emit("settlement.confirmed", {**payload, "kind": "CREDIT"})
         return
     # Rollback: only post ledger entries if the debit was recorded on our side.
@@ -117,7 +119,15 @@ def _on_success(tx: WalletTransaction, bet: Bet, result: WalletResult) -> None:
     ).exists()
     if debit_recorded:
         ledger.rollback_ok(bet)
-        Settlement.objects.filter(bet=bet).update(
-            status=Settlement.Status.CONFIRMED, confirmed_at=now
-        )
+        _confirm(bet, now)
     emit("settlement.confirmed", {**payload, "kind": "REFUND"})
+
+
+def _confirm(bet: Bet, now: object) -> None:
+    settlement = Settlement.objects.select_for_update().filter(bet=bet).first()
+    if settlement is None or settlement.status == Settlement.Status.CONFIRMED:
+        return
+    settlement.status = Settlement.Status.CONFIRMED
+    settlement.confirmed_at = now
+    settlement.save(update_fields=["status", "confirmed_at"])
+    webhooks.bet_settled(bet, settlement)

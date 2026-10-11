@@ -49,7 +49,7 @@ class _Probe:
         self.player_id = player_id
         self.currency = currency
         self.timeout_ms = timeout_ms
-        self.round_ref = tx_ref(uuid7()).replace("tx_", "rnd_")
+        self.round_ref = str(uuid7())
 
     def call(self, op: str, payload: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
         resp = self.client._post(op, payload, self.timeout_ms)
