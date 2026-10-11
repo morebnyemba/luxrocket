@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
 
 from luxrocket.api import demo_views, game_views, internal_views, operator_views
 from luxrocket.core.views import healthz, platform_keys
@@ -20,6 +20,8 @@ urlpatterns = [
     path("game/v1/me/bets", game_views.my_bets),
     path("game/v1/rounds/recent", game_views.recent_rounds),
     path("game/v1/rounds/<uuid:round_id>/verification", game_views.verification),
+    # Operator portal API (staff cookie session, doc 13)
+    path("api/portal/v1/", include("luxrocket.portal.urls")),
     # Internal API (Phoenix only)
     path("internal/v1/ws-tickets/consume", internal_views.consume_ws_ticket),
     path("internal/v1/sessions/<str:session_id>/status", internal_views.session_status),

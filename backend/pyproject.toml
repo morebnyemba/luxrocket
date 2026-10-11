@@ -59,6 +59,7 @@ files = [
     "luxrocket/wallet/conformance.py",
     "luxrocket/operators/webhooks.py",
     "luxrocket/wallet/reconciliation.py",
+    "luxrocket/portal",
 ]
 
 [tool.django-stubs]

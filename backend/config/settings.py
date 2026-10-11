@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "luxrocket.operators",
     "luxrocket.gaming",
     "luxrocket.wallet",
+    "luxrocket.portal",
     "luxrocket.api",
 ]
 
@@ -133,6 +134,15 @@ PLATFORM_SIGNING_KEY_B64 = env(
     "PLATFORM_SIGNING_KEY_B64", _dev_key("platform-signing") if DEBUG else None
 )
 PLATFORM_SIGNING_KID = env("PLATFORM_SIGNING_KID", "plat_dev" if DEBUG else None)
+# AES key (base64, 32 bytes) for portal secrets at rest (TOTP seeds). KMS in production.
+PORTAL_SECRETS_KEY_B64 = env(
+    "PORTAL_SECRETS_KEY_B64", _dev_key("portal-secrets") if DEBUG else None
+)
+PORTAL_SESSION_HOURS = int(env("PORTAL_SESSION_HOURS", "8"))
+PORTAL_IDLE_MINUTES = int(env("PORTAL_IDLE_MINUTES", "30"))
+PORTAL_STEP_UP_MINUTES = int(env("PORTAL_STEP_UP_MINUTES", "10"))
+# "__Host-" requires Secure; browsers treat http://localhost as secure, so it works in dev too.
+PORTAL_COOKIE_NAME = env("PORTAL_COOKIE_NAME", "__Host-lr_portal")
 GAME_TOKEN_TTL_SECONDS = int(env("GAME_TOKEN_TTL_SECONDS", "900"))
 LAUNCH_TOKEN_TTL_SECONDS = int(env("LAUNCH_TOKEN_TTL_SECONDS", "60"))
 WS_TICKET_TTL_SECONDS = int(env("WS_TICKET_TTL_SECONDS", "30"))
