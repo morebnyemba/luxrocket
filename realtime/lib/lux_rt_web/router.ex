@@ -8,5 +8,6 @@ defmodule LuxRtWeb.Router do
   scope "/", LuxRtWeb do
     pipe_through :api
     get "/healthz", HealthController, :show
+    post "/internal/v1/platform-events", InternalController, :platform_events
   end
 end

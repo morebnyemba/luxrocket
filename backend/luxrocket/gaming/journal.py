@@ -197,19 +197,9 @@ def on_round_crashed(round_id: uuid.UUID, stream: str, p: dict[str, Any]) -> Non
             bet.status = Bet.Status.LOST
             bet.save(update_fields=["status", "updated_at"])
             ledger.lost(bet)
+            # Phoenix notifies the player of the loss directly; no wallet call is needed.
             Settlement.objects.create(
                 bet=bet, outcome=Settlement.Outcome.LOSS, status=Settlement.Status.CONFIRMED
-            )
-            from luxrocket.wallet.outbox import emit
-
-            emit(
-                "bet.lost",
-                {
-                    "session_id": bet.session.public_id,
-                    "bet_id": bet.public_id,
-                    "panel": bet.panel,
-                    "crash_x10000": rnd.crash_x10000,
-                },
             )
         elif bet.status in (Bet.Status.DEBITED, Bet.Status.PENDING_DEBIT):
             exclude_bet(bet, "NOT_ADMITTED")

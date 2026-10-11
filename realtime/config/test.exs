@@ -27,3 +27,20 @@ config :logger, level: :warning
 
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
+
+# Tests start coordinators explicitly with short timings.
+config :lux_rt, :start_coordinators, false
+config :lux_rt, :start_relay, false
+config :lux_rt, :platform_client, LuxRt.PlatformStub
+
+config :lux_rt, :fairness,
+  chain_length: 2_000,
+  checkpoint_every: 100,
+  seed_kek_b64: "ZGV2LW9ubHktbm90LWEtc2VjcmV0LXNlZWQta2V5ISE="
+
+# A 50x faster curve keeps every test flight under ~3 s (10 000x is reached at ~3.1 s).
+config :lux_rt, :ruleset,
+  house_edge_bp: 300,
+  max_multiplier_x10000: 100_000_000,
+  curve_lambda_per_ms: "0.003",
+  panels: 2

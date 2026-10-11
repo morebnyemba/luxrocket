@@ -11,6 +11,11 @@ defmodule LuxRtWeb.Endpoint do
     same_site: "Lax"
   ]
 
+  # Player sockets (doc 10 §1). Only the configured game origin may connect.
+  socket "/socket", LuxRtWeb.UserSocket,
+    websocket: [check_origin: {LuxRtWeb.Origin, :allowed?, []}, timeout: 45_000],
+    longpoll: false
+
   # socket "/live", Phoenix.LiveView.Socket,
   #   websocket: [connect_info: [session: @session_options]],
   #   longpoll: [connect_info: [session: @session_options]]

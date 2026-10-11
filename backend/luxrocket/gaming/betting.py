@@ -34,6 +34,8 @@ class BetResult:
     code: str = ""
     bet_id: str = ""
     balance_minor: int | None = None
+    max_win_minor: int | None = None
+    stake_minor: int | None = None
 
     def as_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {"status": self.status}
@@ -43,6 +45,10 @@ class BetResult:
             out["bet_id"] = self.bet_id
         if self.balance_minor is not None:
             out["balance"] = str(self.balance_minor)
+        if self.max_win_minor is not None:
+            out["max_win"] = str(self.max_win_minor)
+        if self.stake_minor is not None:
+            out["stake"] = str(self.stake_minor)
         return out
 
 
@@ -53,6 +59,8 @@ def _existing_result(bet: Bet) -> BetResult:
         Bet.Status.PENDING_DEBIT: "UNKNOWN",
     }
     status = mapping.get(bet.status, "ACCEPTED")  # type: ignore[call-overload]
+    if status == "ACCEPTED":
+        return BetResult(status, "", bet.public_id, None, bet.max_win_minor, bet.stake_minor)
     return BetResult(status, bet.reject_code, bet.public_id)
 
 
@@ -198,7 +206,13 @@ def place_bet(req: dict[str, Any]) -> BetResult:
                 from luxrocket.gaming.journal import exclude_bet
 
                 exclude_bet(bet, reason="LATE")
-            return BetResult("ACCEPTED", bet_id=bet.public_id, balance_minor=result.balance_minor)
+            return BetResult(
+                "ACCEPTED",
+                bet_id=bet.public_id,
+                balance_minor=result.balance_minor,
+                max_win_minor=bet.max_win_minor,
+                stake_minor=bet.stake_minor,
+            )
         if result.outcome == "REJECTED":
             tx.status = WalletTransaction.Status.FAILED
             tx.save()

@@ -20,6 +20,25 @@ if System.get_env("PHX_SERVER") do
   config :lux_rt, LuxRtWeb.Endpoint, server: true
 end
 
+# Platform integration and origins come from the environment in every deployed environment.
+if url = System.get_env("PLATFORM_INTERNAL_URL") do
+  config :lux_rt, :platform,
+    base_url: url,
+    service_token: System.fetch_env!("INTERNAL_SERVICE_TOKEN"),
+    bet_timeout_ms: String.to_integer(System.get_env("BET_TIMEOUT_MS", "900"))
+end
+
+if origins = System.get_env("GAME_ORIGINS") do
+  config :lux_rt, :game_origins, String.split(origins, ",", trim: true)
+end
+
+if kek = System.get_env("SEED_KEK_B64") do
+  config :lux_rt, :fairness,
+    chain_length: String.to_integer(System.get_env("SEED_CHAIN_LENGTH", "1000000")),
+    checkpoint_every: 1_000,
+    seed_kek_b64: kek
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||
