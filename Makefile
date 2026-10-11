@@ -10,10 +10,10 @@ help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  %-16s %s\n", $$1, $$2}'
 
 up: $(STACK_ENV) ## Start Postgres (and Redis/RabbitMQ with --profile infra)
-	docker compose -f infra/compose/docker-compose.yml --env-file $(STACK_ENV) up -d --wait
+	$(COMPOSE) up -d --wait postgres
 
 down: ## Stop local dependencies
-	docker compose -f infra/compose/docker-compose.yml --env-file $(STACK_ENV) down
+	$(COMPOSE) down
 
 install: ## Install all dependencies
 	cd backend && uv sync
@@ -45,8 +45,10 @@ images: ## Build service images
 
 $(STACK_ENV): ## Random per-checkout secrets for the local stack (git-ignored)
 	@mkdir -p .demo
-	@{ echo "POSTGRES_PASSWORD=$$(openssl rand -hex 16)"; \
-	   echo "RABBITMQ_PASSWORD=$$(openssl rand -hex 16)"; \
+	@{ echo "POSTGRES_DB=luxrocket"; echo "POSTGRES_USER=luxrocket"; \
+	   echo "POSTGRES_PASSWORD=$$(openssl rand -hex 16)"; \
+	   echo "RABBITMQ_DEFAULT_USER=luxrocket"; echo "RABBITMQ_DEFAULT_VHOST=luxrocket"; \
+	   echo "RABBITMQ_DEFAULT_PASS=$$(openssl rand -hex 16)"; \
 	   echo "DJANGO_SECRET_KEY=$$(openssl rand -hex 32)"; \
 	   echo "SECRET_KEY_BASE=$$(openssl rand -hex 48)"; \
 	   echo "INTERNAL_SERVICE_TOKEN=$$(openssl rand -hex 24)"; \
@@ -54,14 +56,14 @@ $(STACK_ENV): ## Random per-checkout secrets for the local stack (git-ignored)
 	@echo "wrote $@"
 
 stack: $(STACK_ENV) ## Build and run the full sandbox stack (game on :3000, API :8000, realtime :4000)
-	$(COMPOSE) --env-file $(STACK_ENV) --profile app up -d --build --wait api realtime game workers
+	$(COMPOSE) --profile app up -d --build --wait api realtime game workers
 	@for url in http://localhost:8000/healthz http://localhost:4000/healthz http://localhost:3000/launch; do \
 	  for i in $$(seq 1 60); do curl -fs $$url >/dev/null && break; sleep 2; done; \
 	  curl -fs $$url >/dev/null || { echo "$$url not healthy"; exit 1; }; done
 	@echo "Stack ready. Get a launch link: make demo-launch  ·  embed demo: http://localhost:8000/demo/operator"
 
 stack-down: ## Stop the full stack
-	$(COMPOSE) --env-file $(STACK_ENV) --profile app down
+	$(COMPOSE) --profile app down
 
 demo-launch: ## Print a sandbox launch URL (acts as the operator; PLAYER=name)
 	@cd backend && uv run python scripts/demo_operator.py --key $(or $(KEY),../.demo/operator.key) --player $(or $(PLAYER),demo-$$RANDOM)

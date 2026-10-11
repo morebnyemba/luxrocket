@@ -58,20 +58,32 @@ if config_env() == :prod and is_nil(System.get_env("SEED_KEK_B64")) do
 end
 
 if config_env() == :prod do
-  database_url =
-    System.get_env("DATABASE_URL") ||
-      raise """
-      environment variable DATABASE_URL is missing.
-      For example: ecto://USER:PASS@HOST/DATABASE
-      """
+  # Either DATABASE_URL, or the discrete POSTGRES_* variables (the local stack uses these).
+  db_config =
+    case System.get_env("DATABASE_URL") do
+      nil ->
+        [
+          hostname:
+            System.get_env("POSTGRES_HOST") || raise("DATABASE_URL or POSTGRES_HOST is required"),
+          port: String.to_integer(System.get_env("POSTGRES_PORT", "5432")),
+          database: System.fetch_env!("POSTGRES_DB"),
+          username: System.fetch_env!("POSTGRES_USER"),
+          password: System.fetch_env!("POSTGRES_PASSWORD")
+        ]
+
+      url ->
+        [url: url]
+    end
 
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
-  config :lux_rt, LuxRt.Repo,
-    # ssl: true,
-    url: database_url,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
-    socket_options: maybe_ipv6
+  config :lux_rt,
+         LuxRt.Repo,
+         db_config ++
+           [
+             pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
+             socket_options: maybe_ipv6
+           ]
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you

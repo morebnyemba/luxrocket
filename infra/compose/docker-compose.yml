@@ -1,31 +1,27 @@
-# Local stack. `make up` starts only the data services; `make stack` builds and runs everything
-# (sandbox mode, virtual credits) — see README "Run the full sandbox".
+# Local stack. `make up` starts Postgres; `make stack` builds and runs everything in sandbox
+# mode (virtual credits). Every credential comes from ../../.demo/stack.env, generated with
+# random values by `make stack` and git-ignored — none are written in this file.
 name: luxrocket
 
-x-backend-env: &backend-env
-  DJANGO_DEBUG: "1"                     # sandbox/dev stack only; production sets 0
-  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?run make stack}
-  DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,api"
-  POSTGRES_HOST: postgres
-  POSTGRES_DB: ${POSTGRES_DB:-luxrocket}
-  POSTGRES_USER: ${POSTGRES_USER:-luxrocket}
-  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run make stack (generates .demo/stack.env)}
-  INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?run make stack}
-  GAME_ORIGIN: http://localhost:3000
-  PLAY_BASE_URL: http://localhost:3000
-  REALTIME_INTERNAL_URL: http://realtime:4000
+x-backend: &backend
+  build: { context: ../.., dockerfile: backend/Dockerfile }
+  env_file: ../../.demo/stack.env
+  environment:
+    DJANGO_DEBUG: "1"                     # sandbox/dev stack only; production sets 0
+    DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,api"
+    POSTGRES_HOST: postgres
+    GAME_ORIGIN: http://localhost:3000
+    PLAY_BASE_URL: http://localhost:3000
+    REALTIME_INTERNAL_URL: http://realtime:4000
 
 services:
   postgres:
     image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-luxrocket}
-      POSTGRES_USER: ${POSTGRES_USER:-luxrocket}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run make stack (generates .demo/stack.env)}
+    env_file: ../../.demo/stack.env
     ports: ["127.0.0.1:5432:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-luxrocket}"]
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\""]
       interval: 5s
       retries: 10
 
@@ -37,17 +33,13 @@ services:
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
-    environment:
-      RABBITMQ_DEFAULT_USER: luxrocket
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD}
-      RABBITMQ_DEFAULT_VHOST: luxrocket
+    env_file: ../../.demo/stack.env
     ports: ["127.0.0.1:5672:5672", "127.0.0.1:15672:15672"]
     profiles: ["infra"]
 
-  # One-shot: Django + Phoenix migrations and the demo operator (key written to ./.demo).
+  # One-shot: Django migrations and the demo operator (key written to ./.demo).
   migrate:
-    build: { context: ../.., dockerfile: backend/Dockerfile }
-    environment: *backend-env
+    <<: *backend
     command: ["sh", "-c", "python manage.py migrate --noinput && python manage.py seed_demo --key-out /demo/operator.key --origin http://localhost:8000"]
     volumes: ["../../.demo:/demo"]
     # Local tooling only: writes the demo operator key into the host-mounted ./.demo directory.
@@ -56,31 +48,27 @@ services:
     profiles: ["app"]
 
   api:
-    build: { context: ../.., dockerfile: backend/Dockerfile }
-    environment: *backend-env
+    <<: *backend
     ports: ["127.0.0.1:8000:8000"]
     depends_on: { migrate: { condition: service_completed_successfully } }
     profiles: ["app"]
 
   workers:
-    build: { context: ../.., dockerfile: backend/Dockerfile }
-    environment: *backend-env
+    <<: *backend
     command: ["python", "manage.py", "run_workers"]
     depends_on: { migrate: { condition: service_completed_successfully } }
     profiles: ["app"]
 
   realtime:
     build: { context: ../../realtime }
+    env_file: ../../.demo/stack.env
     environment:
-      DATABASE_URL: ecto://${POSTGRES_USER:-luxrocket}:${POSTGRES_PASSWORD:?run make stack (generates .demo/stack.env)}@postgres/${POSTGRES_DB:-luxrocket}
-      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?run make stack}
-      SEED_KEK_B64: ${SEED_KEK_B64:?run make stack}
+      POSTGRES_HOST: postgres
       SEED_CHAIN_LENGTH: "100000"
       PHX_HOST: localhost
       PHX_SERVER: "true"
       PORT: "4000"
       PLATFORM_INTERNAL_URL: http://api:8000
-      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?run make stack}
       GAME_ORIGINS: http://localhost:3000
     command: ["sh", "-c", "/app/bin/lux_rt eval 'LuxRt.Release.migrate()' && exec /app/bin/lux_rt start"]
     ports: ["127.0.0.1:4000:4000"]
