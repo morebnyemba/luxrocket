@@ -41,3 +41,19 @@ def deterministic_tx_id(bet_id: uuid.UUID, tx_type: str) -> uuid.UUID:
 def tx_public_id(tx_id: uuid.UUID | str) -> str:
     """The one wire form of a wallet transaction id (wallet calls, operator API, webhooks)."""
     return public_id("tx", tx_id if isinstance(tx_id, uuid.UUID) else uuid.UUID(str(tx_id)))
+
+
+def parse_public_id(prefix: str, value: str) -> uuid.UUID | None:
+    """Inverse of public_id(); None for anything malformed."""
+    head, sep, body = value.partition("_")
+    if sep != "_" or head != prefix or len(body) != 26:
+        return None
+    n = 0
+    for ch in body:
+        idx = _B32.find(ch)
+        if idx < 0:
+            return None
+        n = (n << 5) | idx
+    if n >= 1 << 128:
+        return None
+    return uuid.UUID(int=n)

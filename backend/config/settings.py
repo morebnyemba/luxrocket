@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "luxrocket.gaming",
     "luxrocket.wallet",
     "luxrocket.portal",
+    "luxrocket.console",
     "luxrocket.api",
 ]
 
@@ -150,6 +151,25 @@ PORTAL_COOKIE_NAME = env("PORTAL_COOKIE_NAME", "__Host-lr_portal")
 PORTAL_ALLOWED_ORIGINS = [
     o
     for o in env("PORTAL_ALLOWED_ORIGINS", "http://localhost:3001" if DEBUG else "").split(",")
+    if o
+]
+# Platform admin console (doc 12): passkeys mandatory, shorter sessions, fresher step-up.
+ADMIN_COOKIE_NAME = env("ADMIN_COOKIE_NAME", "__Host-lr_admin")
+ADMIN_SESSION_HOURS = int(env("ADMIN_SESSION_HOURS", "4"))
+ADMIN_IDLE_MINUTES = int(env("ADMIN_IDLE_MINUTES", "15"))
+ADMIN_STEP_UP_MINUTES = int(env("ADMIN_STEP_UP_MINUTES", "5"))
+ADMIN_ALLOWED_ORIGINS = [
+    o
+    for o in env("ADMIN_ALLOWED_ORIGINS", "http://localhost:3004" if DEBUG else "").split(",")
+    if o
+]
+# WebAuthn relying party: the admin host name, and every origin the console is served from.
+WEBAUTHN_RP_ID = env("WEBAUTHN_RP_ID", "localhost")
+WEBAUTHN_ORIGINS = [
+    o
+    for o in env(
+        "WEBAUTHN_ORIGINS", "http://localhost:3003,http://localhost:3004" if DEBUG else ""
+    ).split(",")
     if o
 ]
 GAME_TOKEN_TTL_SECONDS = int(env("GAME_TOKEN_TTL_SECONDS", "900"))

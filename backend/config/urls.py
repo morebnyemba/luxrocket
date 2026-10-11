@@ -22,6 +22,8 @@ urlpatterns = [
     path("game/v1/rounds/<uuid:round_id>/verification", game_views.verification),
     # Operator portal API (staff cookie session, doc 13)
     path("api/portal/v1/", include("luxrocket.portal.urls")),
+    # Platform admin API (staff cookie session + passkeys, doc 12)
+    path("api/admin/v1/", include("luxrocket.console.urls")),
     # Internal API (Phoenix only)
     path("internal/v1/ws-tickets/consume", internal_views.consume_ws_ticket),
     path("internal/v1/sessions/<str:session_id>/status", internal_views.session_status),

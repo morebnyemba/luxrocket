@@ -12,6 +12,7 @@ dependencies = [
     "psycopg[binary]>=3.2,<4",
     "pyjwt>=2.9,<3",
     "uvicorn>=0.34,<1",
+    "webauthn>=2.2,<3",
 ]
 
 [dependency-groups]
@@ -60,6 +61,7 @@ files = [
     "luxrocket/operators/webhooks.py",
     "luxrocket/wallet/reconciliation.py",
     "luxrocket/portal",
+    "luxrocket/console",
 ]
 
 [tool.django-stubs]

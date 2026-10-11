@@ -629,7 +629,16 @@ def _update_wallet(request: HttpRequest, ctx: Ctx) -> HttpResponse:
         op.clean()
     except ValidationError as exc:
         return problem("CONFIG_NOT_PERMITTED", 422, "; ".join(exc.messages))
-    op.save(update_fields=["wallet_kind", "wallet_base_url", "wallet_debit_timeout_ms"])
+    if op.wallet_base_url != before["url"]:
+        op.wallet_conformance_passed_at = None  # a new endpoint must pass again
+    op.save(
+        update_fields=[
+            "wallet_kind",
+            "wallet_base_url",
+            "wallet_debit_timeout_ms",
+            "wallet_conformance_passed_at",
+        ]
+    )
     ctx.audit(
         "wallet.updated",
         op.public_id,
@@ -652,6 +661,10 @@ def wallet_conformance(request: HttpRequest, ctx: Ctx) -> HttpResponse:
         ctx.operator.wallet_base_url, player_id=player, currency="USD", timeout_ms=3000
     )
     ctx.audit("wallet.conformance_run", player, passed=report.passed)
+    if report.passed:
+        type(ctx.operator).objects.filter(pk=ctx.operator.pk).update(
+            wallet_conformance_passed_at=timezone.now()
+        )
     return JsonResponse(
         {
             "passed": report.passed,

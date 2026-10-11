@@ -135,13 +135,14 @@ def load_session(request: HttpRequest) -> StaffSession | None:
     return s
 
 
-def same_origin(request: HttpRequest) -> bool:
+def same_origin(request: HttpRequest, allowed: list[str] | None = None) -> bool:
     """Mutations need our custom header (not sendable cross-site without CORS) and, when the
     browser sends one, a same-origin Origin. SameSite=Strict on the cookie is the third layer."""
     if request.headers.get("X-LR-Portal") != "1":
         return False
     origin = request.headers.get("Origin")
-    if origin is None or origin in settings.PORTAL_ALLOWED_ORIGINS:
+    extra = settings.PORTAL_ALLOWED_ORIGINS if allowed is None else allowed
+    if origin is None or origin in extra:
         return True
     return origin == f"{request.scheme}://{request.get_host()}"
 
