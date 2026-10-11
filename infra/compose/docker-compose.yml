@@ -42,7 +42,7 @@ services:
     <<: *backend
     # DEMO_WALLET_URL empty: built-in simulated wallet. `make stack-seamless` routes the demo
     # operator to the reference Seamless Wallet v1 server below over signed HTTP instead.
-    command: ["sh", "-c", "python manage.py migrate --noinput && python manage.py seed_demo --key-out /demo/operator.key --origin http://localhost:8000 --wallet-url \"$$DEMO_WALLET_URL\" --webhook-url \"$$DEMO_WEBHOOK_URL\""]
+    command: ["sh", "-c", "python manage.py migrate --noinput && python manage.py seed_demo --key-out /demo/operator.key --origin http://localhost:8000 --wallet-url \"$$DEMO_WALLET_URL\" --webhook-url \"$$DEMO_WEBHOOK_URL\" && { [ -z \"$$PORTAL_DEMO_PASSWORD\" ] || python manage.py create_portal_user --operator 'Demo Sandbox Operator' --email demo-owner@luxrocket.local --password \"$$PORTAL_DEMO_PASSWORD\"; }"]
     environment:
       DJANGO_DEBUG: "1"
       DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,api"
@@ -110,6 +110,15 @@ services:
         NEXT_PUBLIC_API_URL: http://localhost:8000
         NEXT_PUBLIC_RT_URL: ws://localhost:4000/socket
     ports: ["127.0.0.1:3000:8080"]
+    profiles: ["app"]
+
+  # Operator portal (doc 13): static console + same-origin proxy to the platform API.
+  portal:
+    build: { context: ../.., dockerfile: apps/portal/Dockerfile }
+    environment:
+      PORTAL_API_UPSTREAM: http://api:8000
+    ports: ["127.0.0.1:3002:8080"]
+    depends_on: [api]
     profiles: ["app"]
 
 volumes:

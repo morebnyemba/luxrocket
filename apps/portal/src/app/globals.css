@@ -1,20 +1,33 @@
 @import "tailwindcss";
 
-/* "Console" theme tokens (doc 18 §1). */
+/* "Console" theme tokens (doc 18 §1). Text never wears a status or series colour. */
 :root {
-  --bg: #f7f8fa;
+  --bg: #f6f7f9;
   --surface: #ffffff;
+  --surface-2: #f0f2f5;
+  --border: #e2e5ea;
   --text: #111318;
-  --text-muted: #5b6475;
-  --accent: #d9a93a;
+  --text-muted: #586173;
+  --accent: #b4831c;
+  --accent-ink: #ffffff;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --focus: #2b6cdf;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0b0d12;
     --surface: #12151c;
+    --surface-2: #181c25;
+    --border: #262b36;
     --text: #e6e8ee;
-    --text-muted: #8a93a6;
+    --text-muted: #9099ab;
+    --accent: #d9a93a;
+    --accent-ink: #14110a;
+    --focus: #7aa7ff;
   }
 }
 
@@ -22,4 +35,13 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
 }

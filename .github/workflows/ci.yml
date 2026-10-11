@@ -106,6 +106,7 @@ jobs:
       - run: docker build -f backend/Dockerfile -t luxrocket/backend:ci .
       - run: docker build -t luxrocket/realtime:ci realtime
       - run: docker build -f apps/game/Dockerfile -t luxrocket/game:ci .
+      - run: docker build -f apps/portal/Dockerfile -t luxrocket/portal:ci .
 
   e2e:
     name: End-to-end (full sandbox stack, multi-browser)

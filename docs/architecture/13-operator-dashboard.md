@@ -71,6 +71,17 @@ MFA: optional per user by default; operator can enforce for the tenant; **mandat
 ## 4. Permissions enforcement
 DRF permission class (role → permission) + service-level checks; RLS for data scope; UI hides what's unauthorised but security never relies on it.
 
+## 4a. As built (v1)
+- API `backend/luxrocket/portal` at `/api/portal/v1`; UI `apps/portal` (static export behind nginx, which proxies
+  `/api/portal/` on the same origin and blocks every other `/api/` path).
+- Session: `__Host-lr_portal` cookie (HttpOnly, Secure, SameSite=Strict, Path=/), 8 h absolute, 30 min idle; the
+  operator is taken from the session only. Mutations additionally need `X-LR-Portal: 1` and a same-origin `Origin`.
+- MFA: TOTP (RFC 6238) — optional to enrol, **required** (and fresh within 10 min) for credentials, wallet and
+  user management. WebAuthn is the platform-staff requirement (doc 12) and comes with that console.
+- Isolation today rests on session-derived tenancy + explicit filters, verified by `test_portal.py` (every
+  parameterised route with another tenant's ids → 404; list routes scanned for leaks; route inventory test).
+  Postgres RLS remains the planned second layer.
+
 ## 5. Acceptance criteria
 - AC-OP-1: Cross-tenant test suite (§1.6) passes for 100 % of endpoints; CI blocks new endpoints without a cross-tenant test (route inventory check).
 - AC-OP-2: Secrets displayed exactly once; subsequent API responses never include them (test).

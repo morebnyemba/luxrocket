@@ -135,13 +135,15 @@ def load_session(request: HttpRequest) -> StaffSession | None:
     return s
 
 
-def _same_origin(request: HttpRequest) -> bool:
+def same_origin(request: HttpRequest) -> bool:
     """Mutations need our custom header (not sendable cross-site without CORS) and, when the
     browser sends one, a same-origin Origin. SameSite=Strict on the cookie is the third layer."""
     if request.headers.get("X-LR-Portal") != "1":
         return False
     origin = request.headers.get("Origin")
-    return origin is None or origin == f"{request.scheme}://{request.get_host()}"
+    if origin is None or origin in settings.PORTAL_ALLOWED_ORIGINS:
+        return True
+    return origin == f"{request.scheme}://{request.get_host()}"
 
 
 def portal_view(
@@ -152,12 +154,12 @@ def portal_view(
     allow_password_change: bool = False,
 ) -> Callable[[Callable[..., HttpResponse]], Callable[..., HttpResponse]]:
     def decorate(view: Callable[..., HttpResponse]) -> Callable[..., HttpResponse]:
-        @csrf_exempt  # replaced by _same_origin + SameSite=Strict
+        @csrf_exempt  # replaced by same_origin + SameSite=Strict
         @wraps(view)
         def wrapper(request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
             if request.method not in methods:
                 return problem("METHOD_NOT_ALLOWED", 405)
-            if request.method != "GET" and not _same_origin(request):
+            if request.method != "GET" and not same_origin(request):
                 return problem("CSRF_REJECTED", 403)
             s = load_session(request)
             if s is None:

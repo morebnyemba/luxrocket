@@ -24,9 +24,12 @@ until the Gate RM requirements in doc 19 §5 are met.
 | Wallet conformance runner (operators must pass before go-live) | ✅ `manage.py wallet_conformance` / `make wallet-conformance` | `wallet/conformance.py` |
 | Double-entry ledger; DB triggers make it append-only and reject unbalanced journals | ✅ | `wallet/ledger.py`, `wallet/migrations/0002_ledger_integrity.py` |
 | Player game: two panels, live multiplier, cash-out, history, rules/RTP, in-browser round verification, reconnect/resync, Three.js journey | ✅ | `apps/game` |
-| Interim back-office (read-only financial views) | ✅ Django admin at `/django-admin/` | `*/admin.py` |
+| **Operator portal** (doc 13): staff accounts per operator with six roles, `__Host-` HttpOnly SameSite=Strict session cookie (8 h / 30 min idle), lockout, forced first-login password change, TOTP 2FA (secret AES-GCM at rest, single-use codes), step-up for credentials / wallet / users, custom-header + Origin CSRF check; overview KPIs (GGR from the ledger), bets & bet detail with wallet attempts, rounds, reconciliation, credentials (public-key upload or in-browser Ed25519 generation, private key downloaded once), wallet endpoint + conformance run, webhooks + delivery log + replay, users, sessions, audit | ✅ `http://localhost:3002` | `backend/luxrocket/portal`, `apps/portal` |
+| Hash-chained, DB-enforced append-only audit log with chain verification | ✅ | `portal/audit.py` |
+| Cross-tenant isolation suite + route inventory (AC-OP-1) | ✅ | `backend/tests/test_portal.py` |
+| Interim platform back-office (staff of LUX ROCKET) | ✅ Django admin at `/django-admin/` | `*/admin.py` |
 | Money invariants checker | ✅ `make invariants` | `gaming/invariants.py` |
-| Tests | ✅ 107 Django, 28 Phoenix, 16 game-core, 4 multi-browser E2E | CI job `e2e` runs the full stack |
+| Tests | ✅ 126 Django, 28 Phoenix, 16 game-core, 6 E2E (4 gameplay multi-browser, 2 portal) | CI job `e2e` runs the full stack |
 | One-command sandbox stack | ✅ `make stack` | `infra/compose/docker-compose.yml` |
 
 ## Deliberate interim deviations (tracked)
@@ -38,10 +41,11 @@ until the Gate RM requirements in doc 19 §5 are met.
 | Salt from a public randomness beacon (drand) | Random salt fixed at chain creation (`salt_source: local-random`) | Fine for sandbox; production ceremony must use drand (doc 07 §6.1). |
 | Seed KEK in KMS/HSM | KEK from `SEED_KEK_B64` env (dev/test derive a throwaway key) | Move to KMS before real money (OQ-06). |
 | mTLS on internal calls | Shared bearer service token | Add mTLS on the private network. |
-| Postgres roles per service + RLS for the portal (ADR-019) | Single DB role | Add roles/RLS with the operator portal (Phase F). |
+| Postgres roles per service + RLS for the portal (ADR-019) | Single DB role; tenant isolation by session-derived operator + explicit filters, proven by the cross-tenant route suite | Add `portal_rw` role + `FORCE ROW LEVEL SECURITY` with `SET LOCAL app.operator_id` as defence in depth. |
 | Per-operator CSP `frame-ancestors` on a dynamic launch document | Static launch page; dev nginx allows any parent | Serve the launch document from the platform with per-operator CSP. |
-| Platform admin & operator portal (Next.js) | Django admin (read-only financials) | Phase F. |
-| Staff MFA, four-eyes approvals, hash-chained audit log | Not yet | Phase F/G. |
+| Platform admin console (Next.js, doc 12) | Django admin | Next: same auth core (realm PLATFORM) with WebAuthn and four-eyes approvals. |
+| Portal extras (doc 13): domains with DNS verification, game settings & config versions, CSV/XLSX exports, operator-enforced MFA, HMAC credentials | Not yet | Next increments; the auth/audit/tenant core they need is in place. |
+| WebAuthn for platform staff, four-eyes approvals, daily WORM anchor of the audit chain | Not yet | With the platform admin console. |
 | Seamless wallet adapter on aiohttp workers | Synchronous `httpx` pooled client inside the existing workers | Same contract and semantics; switch to async when wallet-call concurrency (not correctness) becomes the bottleneck. REAL sessions additionally require `real_money_enabled`, LIVE status and a seamless wallet — still gated by Gate RM (doc 19 §5). |
 | Webhook types `session.revoked`, `game.*`, `credential.expiring` (doc 09 §7) | Not yet | Same outbox; add with the reconciliation job and the portal. |
 | Phoenix clustering, BetShard scaling | Single node | Load tests (doc 16 §7) decide. |
@@ -49,7 +53,8 @@ until the Gate RM requirements in doc 19 §5 are met.
 ## Run it
 
 ```bash
-make stack          # full sandbox: game :3000, API :8000, realtime :4000
+make stack          # full sandbox: game :3000, portal :3002, API :8000, realtime :4000
+                    # portal login: demo-owner@luxrocket.local / PORTAL_DEMO_PASSWORD in .demo/stack.env
 make stack-seamless # same, but the demo operator's money moves through the reference
                     # Seamless Wallet v1 server (:8090) over signed HTTP, and webhooks
                     # are delivered to it (see `docker compose logs wallet-sim`)

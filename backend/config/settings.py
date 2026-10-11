@@ -99,6 +99,9 @@ X_FRAME_OPTIONS = "DENY"
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SAMESITE = "Strict"
+# Only behind a proxy that always sets X-Forwarded-Proto (never trust it from clients directly).
+if env("TRUST_PROXY_HEADERS", "0") == "1":
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 LOGGING = {
     "version": 1,
@@ -143,6 +146,12 @@ PORTAL_IDLE_MINUTES = int(env("PORTAL_IDLE_MINUTES", "30"))
 PORTAL_STEP_UP_MINUTES = int(env("PORTAL_STEP_UP_MINUTES", "10"))
 # "__Host-" requires Secure; browsers treat http://localhost as secure, so it works in dev too.
 PORTAL_COOKIE_NAME = env("PORTAL_COOKIE_NAME", "__Host-lr_portal")
+# Extra origins allowed to send portal mutations (the `next dev` proxy changes Host).
+PORTAL_ALLOWED_ORIGINS = [
+    o
+    for o in env("PORTAL_ALLOWED_ORIGINS", "http://localhost:3001" if DEBUG else "").split(",")
+    if o
+]
 GAME_TOKEN_TTL_SECONDS = int(env("GAME_TOKEN_TTL_SECONDS", "900"))
 LAUNCH_TOKEN_TTL_SECONDS = int(env("LAUNCH_TOKEN_TTL_SECONDS", "60"))
 WS_TICKET_TTL_SECONDS = int(env("WS_TICKET_TTL_SECONDS", "30"))

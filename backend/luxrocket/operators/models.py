@@ -31,7 +31,7 @@ class Operator(models.Model):
     )
     # Base URL of the operator's wallet ({base}/debit, /credit, /rollback, /balance).
     wallet_base_url = models.CharField(max_length=500, blank=True)
-    wallet_debit_timeout_ms = models.PositiveIntegerField(default=900)
+    wallet_debit_timeout_ms = models.PositiveIntegerField(default=750)  # platform cap
     created_at = models.DateTimeField(auto_now_add=True)
 
     def clean(self) -> None:

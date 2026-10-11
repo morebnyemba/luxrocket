@@ -37,6 +37,7 @@ from luxrocket.portal.auth import (
     clear_cookie,
     client_ip,
     portal_view,
+    same_origin,
     set_cookie,
     start_session,
 )
@@ -71,7 +72,7 @@ def _iso(value: Any) -> str | None:
 @csrf_exempt
 @require_http_methods(["POST"])
 def login(request: HttpRequest) -> HttpResponse:
-    if request.headers.get("X-LR-Portal") != "1":
+    if not same_origin(request):
         return problem("CSRF_REJECTED", 403)
     data = _body(request)
     email = str(data.get("email", "")).strip().lower()
