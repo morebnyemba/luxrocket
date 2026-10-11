@@ -4,9 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Shell, useMe } from "@/components/Shell";
-import { Button, Card, Field, Input, Mono, Notice, Status, Table } from "@/components/ui";
+import { Button, Card, Field, Input, Mono, Notice, Status, Table, when } from "@luxrocket/console-kit";
 import { api, message } from "@/lib/api";
-import { when } from "@/lib/format";
 import { useResource } from "@/lib/hooks";
 
 type Session = { id: string; current: boolean; created_at: string; last_seen_at: string; ip: string | null; user_agent: string };

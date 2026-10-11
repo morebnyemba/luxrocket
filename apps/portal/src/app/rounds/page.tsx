@@ -1,8 +1,7 @@
 "use client";
 
 import { Shell } from "@/components/Shell";
-import { Card, Mono, Notice, Status, Table, toneFor } from "@/components/ui";
-import { multiplier } from "@/lib/format";
+import { Card, Mono, multiplier, Notice, Status, Table, toneFor } from "@luxrocket/console-kit";
 import { useResource } from "@/lib/hooks";
 
 type Round = {

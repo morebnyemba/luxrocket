@@ -3,9 +3,8 @@
 import { useState } from "react";
 
 import { Shell, useMe } from "@/components/Shell";
-import { Button, Card, Field, Input, Mono, Notice, Status, Table, toneFor } from "@/components/ui";
+import { Button, Card, Field, Input, Mono, Notice, Status, Table, toneFor, when } from "@luxrocket/console-kit";
 import { api, message } from "@/lib/api";
-import { when } from "@/lib/format";
 import { useResource } from "@/lib/hooks";
 
 type Wallet = {

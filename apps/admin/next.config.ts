@@ -1,20 +1,21 @@
 import type { NextConfig } from "next";
 
-// Non-embeddable console (ADR-017): never framed, no referrer leakage.
-const securityHeaders = [
-  { key: "Content-Security-Policy", value: "frame-ancestors 'none'; base-uri 'none'; object-src 'none'" },
-  { key: "X-Frame-Options", value: "DENY" },
-  { key: "X-Content-Type-Options", value: "nosniff" },
-  { key: "Referrer-Policy", value: "no-referrer" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
-];
+// Production: a static export served by nginx, which also proxies /api/admin to Django on the
+// same origin (doc 12: no CORS) and sets the security headers (frame-ancestors 'none', etc.).
+// Development: `next dev` cannot use rewrites together with `output: "export"`, so the proxy
+// is a dev-only rewrite to the local API.
+const isBuild = process.env.NODE_ENV === "production";
+const apiOrigin = process.env.ADMIN_API_ORIGIN ?? "http://localhost:8000";
 
-const nextConfig: NextConfig = {
-  reactStrictMode: true,
-  poweredByHeader: false,
-  async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
-  },
-};
+const nextConfig: NextConfig = isBuild
+  ? { output: "export", reactStrictMode: true, poweredByHeader: false, transpilePackages: ["@luxrocket/console-kit"] }
+  : {
+      reactStrictMode: true,
+      poweredByHeader: false,
+      transpilePackages: ["@luxrocket/console-kit"],
+      async rewrites() {
+        return [{ source: "/api/admin/:path*", destination: `${apiOrigin}/api/admin/:path*` }];
+      },
+    };
 
 export default nextConfig;

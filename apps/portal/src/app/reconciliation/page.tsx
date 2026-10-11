@@ -3,8 +3,7 @@
 import { useState } from "react";
 
 import { Shell } from "@/components/Shell";
-import { Card, Field, Mono, Notice, Select, Status, Table, toneFor } from "@/components/ui";
-import { when } from "@/lib/format";
+import { Card, Field, Mono, Notice, Select, Status, Table, toneFor, when } from "@luxrocket/console-kit";
 import { useResource } from "@/lib/hooks";
 
 type Item = {

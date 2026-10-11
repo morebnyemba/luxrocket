@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* Shared console components live outside this app; let Tailwind see their classes. */
+@source "../../../../packages/console-kit/src";
 
 /* "Console" theme tokens (doc 18 §1). Text never wears a status or series colour. */
 :root {

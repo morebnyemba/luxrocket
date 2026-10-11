@@ -8,10 +8,11 @@ const isBuild = process.env.NODE_ENV === "production";
 const apiOrigin = process.env.PORTAL_API_ORIGIN ?? "http://localhost:8000";
 
 const nextConfig: NextConfig = isBuild
-  ? { output: "export", reactStrictMode: true, poweredByHeader: false }
+  ? { output: "export", reactStrictMode: true, poweredByHeader: false, transpilePackages: ["@luxrocket/console-kit"] }
   : {
       reactStrictMode: true,
       poweredByHeader: false,
+      transpilePackages: ["@luxrocket/console-kit"],
       async rewrites() {
         return [{ source: "/api/portal/:path*", destination: `${apiOrigin}/api/portal/:path*` }];
       },

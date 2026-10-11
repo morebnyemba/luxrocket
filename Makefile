@@ -43,6 +43,7 @@ images: ## Build service images
 	docker build -t luxrocket/realtime:dev realtime
 	docker build -f apps/game/Dockerfile -t luxrocket/game:dev .
 	docker build -f apps/portal/Dockerfile -t luxrocket/portal:dev .
+	docker build -f apps/admin/Dockerfile -t luxrocket/admin:dev .
 
 $(STACK_ENV): ## Random per-checkout secrets for the local stack (git-ignored)
 	@mkdir -p .demo
@@ -54,17 +55,20 @@ $(STACK_ENV): ## Random per-checkout secrets for the local stack (git-ignored)
 	   echo "SECRET_KEY_BASE=$$(openssl rand -hex 48)"; \
 	   echo "INTERNAL_SERVICE_TOKEN=$$(openssl rand -hex 24)"; \
 	   echo "SEED_KEK_B64=$$(openssl rand -base64 32)"; \
-	   echo "PORTAL_DEMO_PASSWORD=$$(openssl rand -hex 12)"; } > $@
+	   echo "PORTAL_DEMO_PASSWORD=$$(openssl rand -hex 12)"; \
+	   echo "ADMIN_DEMO_PASSWORD=$$(openssl rand -hex 12)"; } > $@
 	@echo "wrote $@"
 
-stack: $(STACK_ENV) ## Build and run the full sandbox stack (game :3000, portal :3002, API :8000, realtime :4000)
+stack: $(STACK_ENV) ## Full sandbox stack (game :3000, portal :3002, console :3003, API :8000, realtime :4000)
 	@grep -q '^PORTAL_DEMO_PASSWORD=' $(STACK_ENV) || echo "PORTAL_DEMO_PASSWORD=$$(openssl rand -hex 12)" >> $(STACK_ENV)
-	$(COMPOSE) --profile app up -d --build --wait api realtime game workers portal
-	@for url in http://localhost:8000/healthz http://localhost:4000/healthz http://localhost:3000/launch http://localhost:3002/login; do \
+	@grep -q '^ADMIN_DEMO_PASSWORD=' $(STACK_ENV) || echo "ADMIN_DEMO_PASSWORD=$$(openssl rand -hex 12)" >> $(STACK_ENV)
+	$(COMPOSE) --profile app up -d --build --wait api realtime game workers portal admin
+	@for url in http://localhost:8000/healthz http://localhost:4000/healthz http://localhost:3000/launch http://localhost:3002/login http://localhost:3003/login; do \
 	  for i in $$(seq 1 60); do curl -fs $$url >/dev/null && break; sleep 2; done; \
 	  curl -fs $$url >/dev/null || { echo "$$url not healthy"; exit 1; }; done
 	@echo "Stack ready. Get a launch link: make demo-launch  ·  embed demo: http://localhost:8000/demo/operator"
 	@echo "Operator portal: http://localhost:3002  (demo-owner@luxrocket.local / PORTAL_DEMO_PASSWORD in $(STACK_ENV))"
+	@echo "Platform console: http://localhost:3003 (owner@luxrocket.local / ADMIN_DEMO_PASSWORD; register a passkey at first sign-in)"
 
 stack-seamless: $(STACK_ENV) ## Full stack with the demo operator on the reference Seamless Wallet v1 (signed HTTP)
 	DEMO_WALLET_URL=http://wallet-sim:8090/wallet DEMO_WEBHOOK_URL=http://wallet-sim:8090/wallet/webhooks $(MAKE) stack

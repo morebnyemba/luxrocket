@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
-import { Button, Field, Input } from "@/components/ui";
+import { Button, Field, Input } from "@luxrocket/console-kit";
 import { api, message } from "@/lib/api";
 
 type LoginResult = { mfa_required: boolean; must_change_password: boolean };

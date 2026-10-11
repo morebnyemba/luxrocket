@@ -8,7 +8,7 @@ import { api, message, onStepUp } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
 import type { Me } from "@/lib/types";
 
-import { Button, Input } from "./ui";
+import { Button, Input } from "@luxrocket/console-kit";
 
 const MeContext = createContext<{ me: Me; reload: () => void } | null>(null);
 

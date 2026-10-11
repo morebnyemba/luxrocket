@@ -4,9 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { Shell, useMe } from "@/components/Shell";
-import { Button, Card, Field, Input, Mono, Notice, Select, Status, Table, toneFor } from "@/components/ui";
+import { Button, Card, Field, Input, money, Mono, multiplier, Notice, Select, Status, Table, toneFor, when } from "@luxrocket/console-kit";
 import { api, message } from "@/lib/api";
-import { money, multiplier, when } from "@/lib/format";
 import type { BetRow } from "@/lib/types";
 
 const STATUSES = ["", "ACTIVE", "CASHED_OUT", "LOST", "REJECTED", "EXCLUDED", "VOIDED", "DEBIT_UNKNOWN"];

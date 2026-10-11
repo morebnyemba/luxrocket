@@ -4,8 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
 import { Shell } from "@/components/Shell";
-import { Card, Mono, Notice, Status, Table, toneFor } from "@/components/ui";
-import { money, multiplier, when } from "@/lib/format";
+import { Card, money, Mono, multiplier, Notice, Status, Table, toneFor, when } from "@luxrocket/console-kit";
 import { useResource } from "@/lib/hooks";
 
 type Detail = {

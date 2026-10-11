@@ -103,6 +103,25 @@ No role can approve its own request (exception: `PLAT_OWNER` market changes, ADR
 3. **Credential compromise**: revoke key (immediate) → revoke operator sessions (optional) → incident record → operator notified.
 4. **Stuck credit**: alert → finance views timeline → contacts operator → operator confirms credit landed (evidence) → mark resolved (no money moved) or adjustment ★.
 
+## 5a. As built (v1)
+- API `backend/luxrocket/console` at `/api/admin/v1`; UI `apps/admin` (static export behind nginx proxying only
+  `/api/admin/`). Shared UI/API code with the operator portal lives in `packages/console-kit`.
+- Sign-in: password, then a **WebAuthn passkey with user verification** every time; first sign-in can only
+  register a key. Challenges are session-bound, single-use, 5 min; origin + RP id checked; sign-counter
+  regressions refused. Sessions 4 h / 15 min idle (`__Host-lr_admin`). Step-up = a passkey assertion within
+  5 min for every privileged write.
+- Permissions are the §4 matrix verbatim (`console/auth.py`); `tests/test_console.py` generates the role ×
+  endpoint allow/deny matrix from it (AC-ADM-1), proves no route can write round data (AC-ADM-2), and that
+  self-approval is refused by the view **and** a database CHECK constraint (AC-ADM-3).
+- Built: overview, markets (owner only; closing REAL revokes live real-money sessions), operator onboarding
+  (with first portal owner), immediate suspend, credential revocation, four-eyes **real-money enablement**
+  (conformance passed on the current wallet URL + contract/licence/certification/security evidence + a REAL
+  market) and **reactivation**, finance queue with retry, bet timeline (wallet attempts + ledger),
+  audited player search (masked for support), discrepancy resolution, read-only rounds with journal,
+  staff (one owner, ≤ 3 superadmins appointed by the owner, passkey reset), audit search + chain verification.
+- Not yet: game versions / rulesets / streams / seed-chain activation, maintenance & drain requests to Phoenix,
+  adjustments (`ADJUSTMENT_CREDIT`), analytics time series, incidents register, exports, IP allowlist.
+
 ## 6. Acceptance criteria
 - AC-ADM-1: Every endpoint has an authorization test per role (allowed/denied matrix generated from §4).
 - AC-ADM-2: Attempting any write to `rt` data or round outcome via admin API is impossible (no route) — verified by route inventory test.

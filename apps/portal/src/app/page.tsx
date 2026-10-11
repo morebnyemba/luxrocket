@@ -1,8 +1,7 @@
 "use client";
 
 import { Shell } from "@/components/Shell";
-import { Card, Notice, Status } from "@/components/ui";
-import { money, percentBp } from "@/lib/format";
+import { Card, money, Notice, percentBp, Status } from "@luxrocket/console-kit";
 import { useResource } from "@/lib/hooks";
 
 type Overview = {

@@ -78,3 +78,14 @@ export function totp(secretB32: string, offsetSteps = 0): string {
   const offset = mac[mac.length - 1]! & 0x0f;
   return String((mac.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).padStart(6, "0");
 }
+
+export const adminUrl = process.env.ADMIN_URL ?? "http://localhost:3003";
+
+/** A disposable platform staff member for this run (passkey enrolled in the browser). */
+export function createPlatformStaff(email: string, password: string, role = "PLAT_SUPERADMIN"): void {
+  execFileSync(
+    "uv",
+    ["run", "python", "manage.py", "create_platform_owner", "--email", email, "--role", role, "--password", password],
+    { cwd: backend, env, encoding: "utf8" },
+  );
+}

@@ -33,6 +33,15 @@ test("owner signs in, enrols 2FA, creates a key in the browser and sees it audit
 
   // Generate an Ed25519 pair in the browser: only the public half is uploaded.
   await page.getByRole("link", { name: "Integration" }).click();
+  // Re-runnable on a long-lived stack: revoke keys earlier runs generated (never the seeded one),
+  // so the two-active-keys limit leaves room.
+  await expect(page.getByRole("cell", { name: /^k_demo_/ })).toBeVisible();
+  for (;;) {
+    const stale = page.getByRole("row").filter({ hasNotText: "k_demo_" }).getByRole("button", { name: "Revoke" });
+    if ((await stale.count()) === 0) break;
+    await stale.first().click();
+    await expect(page.getByText(/^Revoked /)).toBeVisible();
+  }
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Generate key pair in browser" }).click();
   const pem = await download;
