@@ -1,0 +1,30 @@
+server {
+  listen 8080;
+  root /usr/share/nginx/html;
+  server_tokens off;
+
+  # Console, never framed (ADR-017); no third-party anything.
+  add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'" always;
+  add_header X-Frame-Options "DENY" always;
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header Referrer-Policy "no-referrer" always;
+  add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
+
+  location /api/admin/ {
+    proxy_pass ${ADMIN_API_UPSTREAM};
+    # The API compares Origin with this Host for its CSRF check.
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 60s;  # long-running admin reads
+  }
+
+  # Nothing else of the platform API is reachable through the portal origin.
+  location /api/ { return 404; }
+
+  location / { try_files $uri $uri.html $uri/ =404; }
+  location /_next/static/ {
+    add_header Cache-Control "public, max-age=31536000, immutable";
+    add_header X-Content-Type-Options "nosniff" always;
+  }
+}

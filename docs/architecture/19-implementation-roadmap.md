@@ -1,6 +1,6 @@
 # 19 — Implementation Roadmap
 
-No calendar dates are given: the repository is empty and team capacity is unknown (OQ-02). Sizes are relative (S ≈ 1–2 engineer-weeks, M ≈ 3–5, L ≈ 6–10) and are to be re-estimated once the team is known.
+No calendar dates are given: the repository is empty and team headcount is unknown. Team membership and access are governed by the access-level model (doc 15 §3.1); dates require a headcount. Sizes are relative (S ≈ 1–2 engineer-weeks, M ≈ 3–5, L ≈ 6–10) and are to be re-estimated once the team is known.
 
 ## 1. Dependency graph
 
@@ -89,6 +89,6 @@ flowchart LR
 | Gate | Before | Requires |
 |------|--------|----------|
 | Gate A | Any code | Doc 22 approval; approval-critical OQs answered or defaults accepted |
-| Gate B→C | Engine work on real rules | Ruleset defaults (OQ-13/14/17/18) accepted for development |
+| Gate B→C | Engine work on real rules | Ruleset defaults (OQ-14/17) accepted (OQ-13/18 decided) for development |
 | Gate E | Any external operator sandbox | Security review of launch/session/wallet code |
 | Gate RM (real money) | Per operator | Contract, licence evidence, lab certificate for the stream's ruleset, pen-test clear, DR test passed, approval_request four-eyes |

@@ -1,0 +1,7 @@
+# Extends the default gitleaks rules. Keep allowlists narrow and justified.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Architecture prose that names token formats (not secrets)"
+regexes = ['''Ed25519-signed''', '''^Ed25519PrivateKey$''']

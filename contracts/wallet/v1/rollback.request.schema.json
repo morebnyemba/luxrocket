@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.luxrocket.example/wallet/v1/rollback.request.schema.json",
+  "title": "Wallet rollback request (platform -> operator)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "transaction_id",
+    "rolled_back_transaction_id",
+    "bet_id",
+    "round_id",
+    "player_id",
+    "currency",
+    "amount",
+    "reason"
+  ],
+  "properties": {
+    "transaction_id": {
+      "type": "string",
+      "pattern": "^tx_[0-9a-z]{26}$"
+    },
+    "rolled_back_transaction_id": {
+      "type": "string",
+      "pattern": "^tx_[0-9a-z]{26}$"
+    },
+    "bet_id": {
+      "type": "string"
+    },
+    "round_id": {
+      "type": "string"
+    },
+    "player_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$"
+    },
+    "amount": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,17}$",
+      "description": "Positive integer amount in minor units, as a string"
+    },
+    "reason": {
+      "enum": [
+        "DEBIT_UNCERTAIN",
+        "BET_EXCLUDED",
+        "ROUND_VOIDED"
+      ]
+    }
+  }
+}

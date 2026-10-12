@@ -1,36 +1,37 @@
 # 03 — Architecture Decision Register
 
 Status values: **Proposed** (awaiting approval), **Accepted**, **Superseded**, **Rejected**.
-All ADRs below are **Proposed** until doc 22 is approved. Later implementation work MUST NOT contradict an Accepted ADR without a superseding ADR.
+Gate A was approved on 2026-10-10; all ADRs in the register are **Accepted**. Later implementation work MUST NOT contradict an Accepted ADR without a superseding ADR.
 
 ## Register
 
 | ADR | Title | Status | Approval sensitivity |
 |-----|-------|--------|----------------------|
-| ADR-001 | Monorepo with separately deployable apps | Proposed | Low |
-| ADR-002 | Phoenix owns time & round facts; Django owns money & business records | Proposed | **High** |
-| ADR-003 | Phoenix round journal as append-only fact log and outbox | Proposed | High |
-| ADR-004 | Coordinator ownership via Postgres lease + fencing token | Proposed | High |
-| ADR-005 | Void-on-malfunction for interrupted rounds | Proposed | **High (regulatory/commercial)** |
-| ADR-006 | Hash-chain provably-fair outcome with post-commitment public salt | Proposed | **High (certification)** |
-| ADR-007 | Seamless wallet with rollback-on-doubt | Proposed | **High (commercial)** |
-| ADR-008 | Integer money and integer multipliers | Proposed | Medium |
-| ADR-009 | postMessage launch handshake + fragment fallback | Proposed | High |
-| ADR-010 | Ed25519 request signing for operator API | Proposed | Medium |
-| ADR-011 | Bet & cash-out commands over WebSocket; everything else HTTPS | Proposed | Medium |
-| ADR-012 | Deterministic client-side curve; low-rate server ticks | Proposed | Medium |
-| ADR-013 | Phoenix.PubSub on distributed Erlang (not Redis) | Proposed | Low |
-| ADR-014 | Redis is never authoritative | Proposed | Medium |
-| ADR-015 | Transactional outbox + RabbitMQ with idempotent consumers | Proposed | Medium |
-| ADR-016 | Django ASGI internal API + asyncio wallet-worker (aiohttp); Celery for scheduled jobs | Proposed | Medium |
-| ADR-017 | Three separate frontends; game as static export on its own origin | Proposed | Medium |
-| ADR-018 | Defer PixiJS; DOM HUD + Three.js effects | Proposed | Low |
-| ADR-019 | Tenant isolation: scoped repositories + Postgres RLS | Proposed | High |
-| ADR-020 | Round streams as the unit of shared rounds | Proposed | High |
-| ADR-021 | Docker on Linux VMs, no Kubernetes at launch; Johannesburg region | Proposed | Medium |
-| ADR-022 | Short-lived signed game-session tokens + single-use WS tickets | Proposed | High |
-| ADR-023 | No FX in platform; per-currency limits | Proposed | Low |
-| ADR-024 | Bet admission journaled; debit is not inclusion | Proposed | High |
+| ADR-001 | Monorepo with separately deployable apps | Accepted (Gate A, 2026-10-10) | Low |
+| ADR-002 | Phoenix owns time & round facts; Django owns money & business records | Accepted (Gate A, 2026-10-10) | **High** |
+| ADR-003 | Phoenix round journal as append-only fact log and outbox | Accepted (Gate A, 2026-10-10) | High |
+| ADR-004 | Coordinator ownership via Postgres lease + fencing token | Accepted (Gate A, 2026-10-10) | High |
+| ADR-005 | Void-on-malfunction for interrupted rounds | Accepted (Gate A, 2026-10-10) | **High (regulatory/commercial)** |
+| ADR-006 | Hash-chain provably-fair outcome with post-commitment public salt | Accepted (Gate A, 2026-10-10) | **High (certification)** |
+| ADR-007 | Seamless wallet with rollback-on-doubt | Accepted (Gate A, 2026-10-10) | **High (commercial)** |
+| ADR-008 | Integer money and integer multipliers | Accepted (Gate A, 2026-10-10) | Medium |
+| ADR-009 | postMessage launch handshake + fragment fallback | Accepted (Gate A, 2026-10-10) | High |
+| ADR-010 | Ed25519 request signing for operator API | Accepted (Gate A, 2026-10-10) | Medium |
+| ADR-011 | Bet & cash-out commands over WebSocket; everything else HTTPS | Accepted (Gate A, 2026-10-10) | Medium |
+| ADR-012 | Deterministic client-side curve; low-rate server ticks | Accepted (Gate A, 2026-10-10) | Medium |
+| ADR-013 | Phoenix.PubSub on distributed Erlang (not Redis) | Accepted (Gate A, 2026-10-10) | Low |
+| ADR-014 | Redis is never authoritative | Accepted (Gate A, 2026-10-10) | Medium |
+| ADR-015 | Transactional outbox + RabbitMQ with idempotent consumers | Accepted (Gate A, 2026-10-10) | Medium |
+| ADR-016 | Django ASGI internal API + asyncio wallet-worker (aiohttp); Celery for scheduled jobs | Accepted (Gate A, 2026-10-10) | Medium |
+| ADR-017 | Three separate frontends; game as static export on its own origin | Accepted (Gate A, 2026-10-10) | Medium |
+| ADR-018 | Defer PixiJS; DOM HUD + Three.js effects | Accepted (Gate A, 2026-10-10) | Low |
+| ADR-019 | Tenant isolation: scoped repositories + Postgres RLS | Accepted (Gate A, 2026-10-10) | High |
+| ADR-020 | Round streams as the unit of shared rounds | Accepted (Gate A, 2026-10-10) | High |
+| ADR-021 | Docker on Linux VMs, no Kubernetes at launch; Johannesburg region | Accepted (Gate A, 2026-10-10) | Medium |
+| ADR-022 | Short-lived signed game-session tokens + single-use WS tickets | Accepted (Gate A, 2026-10-10) | High |
+| ADR-023 | No FX in platform; per-currency limits | Accepted (Gate A, 2026-10-10) | Low |
+| ADR-024 | Bet admission journaled; debit is not inclusion | Accepted (Gate A, 2026-10-10) | High |
+| ADR-026 | Open to all markets; market enablement is owner-only | **Accepted** (owner, 2026-10-10) | High |
 
 ---
 
@@ -87,7 +88,7 @@ All ADRs below are **Proposed** until doc 22 is approved. Later implementation w
 **Consequences.** Operators must implement idempotent rollback-of-unknown semantics (doc 01 §2). Players occasionally see a refunded "failed" bet after a timeout — correct and safe.
 
 ## ADR-008 — Integer money
-**Decision.** `amount_minor BIGINT` + `currency CHAR(3)`; per-currency exponent from `CurrencyConfiguration`. Multipliers `multiplier_x100 INT`. Payout = `floor(stake_minor × multiplier_x100 / 100)`, then `min(·, max_win_minor)`.
+**Decision.** `amount_minor BIGINT` + `currency CHAR(3)`; per-currency exponent from `CurrencyConfiguration`. Multipliers `multiplier_x10000 INT` (one unit everywhere; crash points and auto targets are multiples of 100). Payout = `floor(stake_minor × multiplier_x10000 / 10000)`, then `min(·, max_win_minor)`.
 **Consequences.** Python `int`, Elixir integers and JS `BigInt`/safe integers; JSON carries amounts as **strings** to avoid JS double precision issues above 2^53.
 
 ## ADR-009 — Launch handshake
@@ -130,6 +131,19 @@ All ADRs below are **Proposed** until doc 22 is approved. Later implementation w
 
 ## ADR-019 — Tenant isolation
 **Decision.** (1) Every tenant-owned table has `operator_id NOT NULL`. (2) Django access via repository/service functions requiring an explicit `TenantContext`; unscoped managers forbidden by lint rule in operator-facing code. (3) Operator-portal API uses DB role `portal_rw` with Postgres RLS policies `operator_id = current_setting('app.operator_id')::uuid`, set per request with `SET LOCAL`. (4) Cross-tenant tests for every endpoint. Platform admin uses a separate role without RLS but with full audit.
+**As built (2026-10-12).** Roles: `lr_platform` (Django; owns schema `platform`, reads `rt`, never
+writes it, cannot select encrypted seed columns), `lr_realtime` (Phoenix; owns `rt`, no access to
+`platform`), `lr_portal` (NOLOGIN, the `portal_rw` of the decision). Created by
+`infra/postgres/roles.sql` (run as superuser; idempotent; adopts objects of older single-user stacks) and
+probed by `infra/postgres/check-roles.sh`. Each portal request runs in one transaction under
+`SET LOCAL ROLE lr_portal` + `app.operator_id`; policies are `FOR ALL … USING/WITH CHECK` on the owning
+operator (directly, or through the parent row for child tables). We use `ENABLE` rather than `FORCE` RLS:
+the owner (`lr_platform`, used by workers and the platform console) is deliberately unrestricted, and
+`FORCE` would only bind the owner, which the portal never runs as. Grants are least-privilege per table
+(e.g. the operator row is updatable only in its wallet-routing columns); platform tables (console,
+outbox, nonces) are unreachable. `luxrocket/core/tenancy.py` is the single classification; it is
+re-applied after every `migrate`, and a test fails when a new table is unclassified. The global audit
+hash chain is appended via the one explicit `tenancy.unscoped()` escape. Not done: the lint rule of (2).
 
 ## ADR-020 — Round streams
 **Decision.** A `RoundStream` is a continuously running sequence of rounds bound to a `GameVersion` + `Ruleset` + seed chain. Operators are assigned to one stream per environment (default `global-main`). Jurisdictions requiring separately certified configurations get separate streams.
@@ -150,5 +164,14 @@ All ADRs below are **Proposed** until doc 22 is approved. Later implementation w
 **Decision.** A successful debit makes a bet *eligible*; the coordinator's journaled `BET_ADMITTED` makes it *part of the round*. A debited bet that is excluded (late, round voided, coordinator lost) is refunded via rollback.
 **Consequences.** Bet lifecycle has a `DEBITED` (pending admission) state. Reconciler refunds any debited bet without an admission fact once its round is terminal.
 
+## ADR-026 — Open to all markets; market enablement is owner-only
+**Decision.** No country is excluded by design. A platform-level `market` registry holds every ISO-3166 country with `status ∈ {DISABLED, SANDBOX, REAL}` (default DISABLED for REAL, SANDBOX allowed everywhere). Changing a market's status is a permission held **only** by `PLAT_OWNER` — a single account (the founder), WebAuthn hardware key, step-up on every change, no delegation, no second approver. Every change records the owner's evidence reference (licence, legal opinion, certificate) and is audited.
+A session/bet is allowed only if: market(country) permits the mode **and** the operator lists the country in `operator_jurisdiction` **and** the operator is enabled for that mode.
+**Consequences.**
+- Legality is an owner decision, not a code decision; the system enforces whatever the owner enables, and records who decided and on what evidence.
+- Key-person risk: if the owner account is lost, markets cannot be changed. Mitigation: sealed break-glass recovery (two recovery keys stored offline; use triggers alerts and is audited). Recovery does not grant a second permanent owner.
+- Some regulators require segregation of duties for such changes; if one does, the owner can add a second approver for that market only (setting stored on the market), without changing the default.
+- Disabling a market for REAL revokes affected sessions at once; already accepted bets settle normally.
+
 ## Unresolved decisions (tracked in doc 20)
-OQ-10 (void policy), OQ-12 (RNG certification path), OQ-13 (house edge), OQ-14 (max multiplier & max win), OQ-15 (wallet `settle` call), OQ-05 (managed Postgres availability), OQ-20 (cancel bet in betting window).
+OQ-10 (void policy), OQ-12 (RNG certification path), OQ-14 (max multiplier & max win), OQ-15 (wallet `settle` call), OQ-05 (managed Postgres availability), OQ-20 (cancel bet in betting window).

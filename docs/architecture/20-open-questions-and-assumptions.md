@@ -6,14 +6,14 @@ Legend — **Approval**: *Required* = blocks the gate shown; *Default OK* = we p
 
 | ID | Question | Why it matters | Proposed default | Approval / gate |
 |----|----------|----------------|------------------|-----------------|
-| OQ-01 | Which markets are actually targeted first, and in which order? South Africa in particular? | Online casino-style games are restricted/prohibited in some markets; determines certification, streams, currencies | Zimbabwe first; others only after counsel confirms legality | Required — Gate A |
-| OQ-02 | Team size/composition and target timeline | Roadmap sizing; feasibility of two runtimes | 3–5 engineers (1 Elixir-capable) | Required — Gate A |
-| OQ-10 | Void-on-malfunction policy for interrupted rounds | Player fairness, regulator acceptance, financial cost | Void uncashed bets & refund; pay journaled cash-outs (ADR-005) | Required — Gate A |
-| OQ-12 | RNG certification path (hash-chain vs. certified RNG) per jurisdiction | May force a different outcome source | Hash-chain + drand salt; formula separable | Required — before Phase H, inform Phase C |
-| OQ-13 | House edge / target RTP | Core economics & certification | 3 % edge (97 % RTP) | Required — Gate B→C |
-| OQ-14 | Max multiplier M and max win per bet W (per currency) | Exposure, rules text | M = 10 000×; W = USD 10 000 equiv., set per currency | Required — Gate B→C |
-| OQ-17 | Auto cash-out tie rule (target = crash) | Rules text; RTP exactness | Tie goes to player | Required — Gate B→C |
-| OQ-18 | Manual cash-out pricing precision (0.01× vs 0.0001×) | Manual RTP drag up to ~1 % | Price at x10000 internally, display x100 | Required — Gate B→C |
+| OQ-01 | Which markets? | — | **Resolved 2026-10-10: open to all markets; each market enabled only by the owner (`PLAT_OWNER`) via the market registry (ADR-026)** | Closed |
+| OQ-02 | Team composition & access | — | **Resolved 2026-10-10: role-based access with levels L0–L4 (doc 15 §3.1)**; headcount still determines dates — roadmap stays in relative sizes until known | Closed (access) / headcount informational |
+| OQ-10 | Void-on-malfunction policy for interrupted rounds | Player fairness, regulator acceptance, financial cost | Void uncashed bets & refund; pay journaled cash-outs (ADR-005) | **Default accepted at Gate A (2026-10-10)** |
+| OQ-12 | RNG certification path (hash-chain vs. certified RNG) per jurisdiction | May force a different outcome source | Hash-chain + drand salt; formula separable | **Default accepted at Gate A (2026-10-10)** |
+| OQ-13 | House edge / target RTP | Core economics & certification | **Resolved 2026-10-10: 3 % edge, 97 % RTP** | Closed |
+| OQ-14 | Max multiplier M and max win per bet W (per currency) | Exposure, rules text | M = 10 000×; W = USD 10 000 equiv., set per currency | **Default accepted at Gate A (2026-10-10)** |
+| OQ-17 | Auto cash-out tie rule (target = crash) | Rules text; RTP exactness | Tie goes to player | **Default accepted at Gate A (2026-10-10)** |
+| OQ-18 | Manual cash-out pricing precision (0.01× vs 0.0001×) | Manual RTP drag up to ~1 % | **Resolved 2026-10-10: all multipliers stored as `*_x10000`; manual cash-outs priced at 0.0001×; display 2 dp** | Closed |
 | OQ-07 | Is "LUX ROCKET" trademark-cleared in target markets? | Branding rework risk | Assume clear; check before public launch | Required — before Phase G |
 
 ## 2. Commercial & operator
@@ -37,7 +37,7 @@ Legend — **Approval**: *Required* = blocks the gate shown; *Default OK* = we p
 | OQ-24 | Show other players' cash-outs with amounts? | Multipliers + masked aliases only | Default OK |
 | OQ-32 | Round timing defaults (7 s betting, 1 s grace, 2 s cooldown, λ) | As in doc 07 §1 | Default OK |
 | OQ-35 | Launch locales | en first; then pt (Mozambique), sn/nd (Zimbabwe) subject to demand | Default OK |
-| OQ-09 | One global stream vs per-jurisdiction streams at launch | One stream per environment; split only when required | Default OK |
+| OQ-09 | One global stream vs per-jurisdiction streams at launch | One stream per environment; split only when required | **Default accepted at Gate A (2026-10-10)** |
 
 ## 4. Security, infra & compliance
 

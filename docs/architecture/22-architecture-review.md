@@ -1,6 +1,8 @@
 # 22 — Architecture Review (Approval Gate A)
 
-**Decision requested:** approve the architecture (ADRs 001–024 as Proposed) and answer or accept defaults for the approval-critical questions in §12, so Phase B and the scaffold can start. Real-money operation is **not** part of this approval.
+**Outcome: APPROVED by the owner on 2026-10-10.** Proposed defaults accepted for OQ-09, OQ-10, OQ-12, OQ-14 and OQ-17; OQ-07 (trademark) remains a pre-launch check. Implementation proceeds with the scaffold and Phase B.
+
+**Original decision requested:** approve the architecture (ADRs 001–024 as Proposed) and answer or accept defaults for the approval-critical questions in §12, so Phase B and the scaffold can start. Real-money operation is **not** part of this approval.
 
 ## 1. Proposed architecture (summary)
 One monorepo producing: a static embeddable game (Next.js export on CDN, Three.js), two Next.js consoles (platform admin, operator portal), a Django platform (operator API, game API, internal API, async wallet worker, journal consumer, Celery jobs), and a Phoenix cluster that terminates WebSockets and runs one leased, fenced **RoundCoordinator per round stream**. PostgreSQL is the only source of truth (schemas `platform`, `rt`, `audit`); Redis is cache-only; RabbitMQ carries at-least-once events backed by outbox/journal tables. Single Johannesburg region on Docker/Linux VMs, no Kubernetes.
@@ -18,6 +20,8 @@ Empty repository: no commits, no remote branches, no code, no conventions to pre
 - **ADR-009/022** postMessage launch handshake (fragment fallback), 15-min in-memory session tokens, single-use WS tickets.
 - **ADR-012** Clients render the curve from `launch_at`; 4 Hz corrective ticks.
 - **ADR-017/018** Separate frontends/origins; PixiJS deferred.
+- **ADR-026 (Accepted)** Open to all markets; only the owner can enable a market, with evidence recorded.
+- **Team access** L0–L4 access levels plus application RBAC; no human can read seeds or crash points (doc 15 §3.1).
 - **ADR-019** Tenant isolation with scoped repositories **and** Postgres RLS.
 
 ## 4. Alternatives rejected
@@ -50,8 +54,7 @@ Operator backend creates a session (Ed25519-signed) → receives a ≤ 60 s sing
 Independent client state machines per panel (IDLE → PLACING → PLACED → ACTIVE → CASHING_OUT → CASHED_OUT → SETTLED, with LOST/REJECTED/REFUNDING/RECOVERING branches). Server: PENDING_DEBIT → DEBITED → ACTIVE → CASHED_OUT/LOST/VOIDED; unknown debits and late debits are refunded. One bet per panel per player per round, enforced in the DB. Auto cash-outs run in the coordinator at curve crossing time; `CASHOUT_ACCEPTED` is sent only after the fact is journaled; `SETTLEMENT_CONFIRMED` after the operator acknowledges the credit.
 
 ## 9. Game mathematics risks
-- Edge, cap, max-win, tie rule and manual pricing precision need decisions (OQ-13/14/17/18).
-- Manual cash-out rounding drag (up to ~1 % at low multipliers) unless priced at x10000.
+- Decided: 3 % edge / 97 % RTP (OQ-13) and 0.0001× manual pricing (OQ-18). Still open: cap, max-win and tie rule (OQ-14/17).
 - Provable fairness does not exclude insider knowledge of the seed chain → key management is a primary control.
 - RNG acceptability by regulators is unknown (OQ-12).
 - Requires independent mathematical review and lab certification before production.
@@ -70,14 +73,10 @@ Threat model T-01..T-20 with controls and tests (doc 15). Regulatory: product le
 ## 12. Assumptions & questions requiring approval
 | ID | Decision | Default proposed |
 |----|----------|------------------|
-| OQ-01 | First markets (and SA stance) | Zimbabwe first; others after counsel |
-| OQ-02 | Team size & timeline | 3–5 engineers incl. 1 Elixir-capable |
 | OQ-10 | Void-on-malfunction | Accept ADR-005 |
 | OQ-12 | RNG path | Hash-chain + drand; swappable |
-| OQ-13 | House edge | 3 % |
 | OQ-14 | Max multiplier / max win | 10 000× / USD 10 000 equiv. |
 | OQ-17 | Tie rule | Tie to player |
-| OQ-18 | Manual pricing precision | x10000 internal |
 | OQ-07 | Trademark clearance | Check before public launch |
 Plus assumptions AS-01..AS-10 (doc 20 §5), notably that operators accept the rollback-of-unknown and credit-after-session-end obligations.
 

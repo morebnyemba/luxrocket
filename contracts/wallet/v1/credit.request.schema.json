@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.luxrocket.example/wallet/v1/credit.request.schema.json",
+  "title": "Wallet credit request (platform -> operator)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "transaction_id",
+    "debit_transaction_id",
+    "bet_id",
+    "round_id",
+    "player_id",
+    "currency",
+    "amount",
+    "type",
+    "multiplier_x10000",
+    "created_at"
+  ],
+  "properties": {
+    "transaction_id": {
+      "type": "string",
+      "pattern": "^tx_[0-9a-z]{26}$"
+    },
+    "debit_transaction_id": {
+      "type": "string",
+      "pattern": "^tx_[0-9a-z]{26}$"
+    },
+    "bet_id": {
+      "type": "string"
+    },
+    "round_id": {
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "operator_session_token": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "player_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$"
+    },
+    "amount": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,17}$",
+      "description": "Positive integer amount in minor units, as a string"
+    },
+    "type": {
+      "const": "WIN"
+    },
+    "multiplier_x10000": {
+      "type": "integer",
+      "minimum": 10000,
+      "maximum": 100000000,
+      "description": "Multiplier in ten-thousandths (10000 = 1.00x)"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

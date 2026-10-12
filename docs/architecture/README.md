@@ -1,6 +1,6 @@
 # LUX ROCKET — Architecture Package
 
-Status: **DRAFT — awaiting architecture review and approval (Phase A gate)**
+Status: **APPROVED — Gate A passed 2026-10-10** (proposed defaults accepted for remaining open questions; see doc 20). Real-money operation is not covered by this approval.
 Date: 2026-10-10
 Scope: Phase 1 (architecture-first discovery). No application code, dependencies or visual assets exist yet.
 
@@ -31,13 +31,14 @@ Scope: Phase 1 (architecture-first discovery). No application code, dependencies
 | 20 | [Open questions & assumptions](20-open-questions-and-assumptions.md) | Everything that needs a decision |
 | 21 | [Requirements traceability matrix](21-requirements-traceability.md) | Requirement → component → doc → test → milestone |
 | 22 | [Architecture review (approval gate)](22-architecture-review.md) | The concise review to approve or reject |
+| 23 | [Implementation status](23-implementation-status.md) | What is built, interim deviations, how to run it |
 
 ## Conventions used throughout
 
 - **Identifiers**: requirements `FR-xxx` / `NFR-xxx`, decisions `ADR-0xx`, open questions `OQ-xx`, threats `T-xx`, risks `R-xx`.
 - **Normative language**: MUST / MUST NOT / SHOULD / MAY as in RFC 2119.
 - **Illustrative**: every endpoint, payload and hostname in this package is a **proposed contract**. Nothing is implemented. Hostnames use the reserved placeholder domain `luxrocket.example`.
-- **Money**: always integer minor units (`amount_minor`, BIGINT) plus ISO-4217 `currency`. Multipliers are integer hundredths (`multiplier_x100`, e.g. `235` = 2.35×). No floating-point money anywhere.
+- **Money**: always integer minor units (`amount_minor`, BIGINT) plus ISO-4217 `currency`. Multipliers are integer ten-thousandths everywhere (`*_x10000`, e.g. `23456` = 2.3456×). Crash points and auto cash-out targets are restricted to the 0.01× grid (multiples of 100); manual cash-outs are priced at full 0.0001× precision. No floating-point money anywhere.
 - **Time**: UTC, RFC 3339 with millisecond precision in JSON; `int64` Unix milliseconds on the real-time wire where noted.
 - **IDs**: UUIDv7 (time-ordered) for all internal entity IDs unless stated; public operator-facing IDs are prefixed (`op_`, `ses_`, `rnd_`, `bet_`, `tx_`).
 

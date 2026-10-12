@@ -56,14 +56,14 @@
 
 ### 2.5 End-to-end
 Compose stack: Postgres, Redis, RabbitMQ, 3 Phoenix nodes, Django processes, operator simulator (with fault injection), game app.
-1. **Multi-player same round**: 50 headless browsers (Playwright) across 3 rt nodes, each with 2 panels (different auto targets + manual cash-outs) ⇒ all receive identical `crash_x100`/seed; each panel settles independently; ledger totals equal sum of wallet-simulator effects.
+1. **Multi-player same round**: 50 headless browsers (Playwright) across 3 rt nodes, each with 2 panels (different auto targets + manual cash-outs) ⇒ all receive identical `crash_x10000`/seed; each panel settles independently; ledger totals equal sum of wallet-simulator effects.
 2. **Latency & loss**: toxiproxy 200 ms ± 100 ms, 3 % loss on clients; on wallet 0–2 s latency.
 3. **Browser suspension**: background tabs during flight ⇒ correct state on resume.
 4. **Service restarts**: kill rt nodes, Django internal, wallet-worker, RabbitMQ node, Redis; verify invariants after convergence.
 5. **Duplicate requests**: client retry storms, relay duplicates, wallet duplicate responses.
 
 **Global invariants checked after every E2E/chaos run** (SQL assertions):
-- Each round has exactly one terminal fact; crash_x100 equals formula(seed).
+- Each round has exactly one terminal fact; crash_x10000 equals formula(seed).
 - Each admitted bet has exactly one terminal settlement; no bet both CASHED_OUT and REFUNDED.
 - Per bet ≤ 1 DEBIT, ≤ 1 CREDIT, ≤ 1 ROLLBACK succeeded; simulator wallet balance changes equal ledger `player_wallet` sum.
 - No CASHOUT_ACCEPTED with `received_at ≥ crash_at`.

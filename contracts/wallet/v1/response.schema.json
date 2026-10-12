@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.luxrocket.example/wallet/v1/response.schema.json",
+  "title": "Wallet response (operator -> platform)",
+  "type": "object",
+  "required": [
+    "status",
+    "transaction_id"
+  ],
+  "properties": {
+    "status": {
+      "enum": [
+        "OK",
+        "REJECTED"
+      ]
+    },
+    "transaction_id": {
+      "type": "string"
+    },
+    "operator_transaction_id": {
+      "type": "string"
+    },
+    "balance": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,17})$",
+      "description": "Integer amount in currency minor units, as a string"
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$"
+    },
+    "code": {
+      "enum": [
+        "INSUFFICIENT_FUNDS",
+        "PLAYER_BLOCKED",
+        "SESSION_EXPIRED",
+        "LIMIT_EXCEEDED",
+        "CURRENCY_MISMATCH",
+        "DUPLICATE_TRANSACTION",
+        "TRANSACTION_NOT_FOUND",
+        "INVALID_REQUEST",
+        "INTERNAL_ERROR"
+      ]
+    },
+    "duplicate": {
+      "type": "boolean"
+    }
+  },
+  "if": {
+    "properties": {
+      "status": {
+        "const": "REJECTED"
+      }
+    }
+  },
+  "then": {
+    "required": [
+      "code"
+    ]
+  }
+}

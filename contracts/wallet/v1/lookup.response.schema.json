@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.luxrocket.example/wallet/v1/lookup.response.schema.json",
+  "title": "Transaction lookup response (operator -> platform)",
+  "type": "object",
+  "required": ["transactions"],
+  "properties": {
+    "transactions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["transaction_id", "status"],
+        "properties": {
+          "transaction_id": { "type": "string" },
+          "status": {
+            "enum": ["OK", "REJECTED", "NOT_FOUND", "VOIDED"],
+            "description": "VOIDED: the id was tombstoned by a rollback that arrived first; it can never apply"
+          },
+          "amount": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,17})$" },
+          "currency": { "type": "string", "pattern": "^[A-Z]{3}$" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.luxrocket.example/wallet/v1/lookup.request.schema.json",
+  "title": "Transaction lookup (platform -> operator, optional, used by reconciliation)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["transaction_ids"],
+  "properties": {
+    "transaction_ids": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 200,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^tx_[0-9a-z]{26}$" }
+    }
+  }
+}

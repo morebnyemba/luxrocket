@@ -1,0 +1,13 @@
+**/node_modules
+**/.next
+**/out
+**/.venv
+**/__pycache__
+**/_build
+**/deps
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+.git
+e2e/test-results
+.demo-operator.key
