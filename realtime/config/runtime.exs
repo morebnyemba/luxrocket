@@ -76,8 +76,13 @@ if config_env() == :prod do
             System.get_env("POSTGRES_HOST") || raise("DATABASE_URL or POSTGRES_HOST is required"),
           port: String.to_integer(System.get_env("POSTGRES_PORT", "5432")),
           database: System.fetch_env!("POSTGRES_DB"),
-          username: System.fetch_env!("POSTGRES_USER"),
-          password: System.fetch_env!("POSTGRES_PASSWORD")
+          # A per-service role (ADR-019) when REALTIME_DB_USER is set, else the POSTGRES_* pair.
+          username: System.get_env("REALTIME_DB_USER") || System.fetch_env!("POSTGRES_USER"),
+          password:
+            if(System.get_env("REALTIME_DB_USER"),
+              do: System.fetch_env!("REALTIME_DB_PASSWORD"),
+              else: System.fetch_env!("POSTGRES_PASSWORD")
+            )
         ]
 
       url ->

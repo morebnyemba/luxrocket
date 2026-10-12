@@ -2,7 +2,10 @@
 --
 --   psql -v ON_ERROR_STOP=1 -v db=luxrocket \
 --        -v platform_user=lr_platform -v realtime_user=lr_realtime -v portal_role=lr_portal \
---        [-v platform_password=... -v realtime_password=...] -f infra/postgres/roles.sql
+--        -f infra/postgres/roles.sql
+--
+-- Login passwords, when given, are read from the environment (never the command line):
+-- PLATFORM_DB_PASSWORD and REALTIME_DB_PASSWORD.
 --
 -- platform_user  Django: owns schema `platform`; reads (never writes) schema `rt`.
 -- realtime_user  Phoenix: owns schema `rt` (and Ecto's public.schema_migrations); cannot see
@@ -92,6 +95,8 @@ BEGIN
   END IF;
 END $$;
 
+\getenv platform_password PLATFORM_DB_PASSWORD
+\getenv realtime_password REALTIME_DB_PASSWORD
 \if :{?platform_password}
 ALTER ROLE :"platform_user" PASSWORD :'platform_password';
 \endif

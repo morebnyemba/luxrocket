@@ -51,12 +51,20 @@ ROOT_URLCONF = "config.urls"
 ASGI_APPLICATION = "config.asgi.application"
 WSGI_APPLICATION = "config.wsgi.application"
 
+_DB_USER = env("PLATFORM_DB_USER", "") or env("POSTGRES_USER", "luxrocket")
+_DB_SECRET = (
+    env("PLATFORM_DB_PASSWORD")
+    if env("PLATFORM_DB_USER", "")
+    else env("POSTGRES_PASSWORD", "luxrocket-dev-only" if DEBUG else None)
+)
+
 DATABASES = {
     "default": {
         "ENGINE": "luxrocket.core.db.backend",
         "NAME": env("POSTGRES_DB", "luxrocket"),
-        "USER": env("POSTGRES_USER", "luxrocket"),
-        "PASSWORD": env("POSTGRES_PASSWORD", "luxrocket-dev-only" if DEBUG else None),
+        # A per-service role (ADR-019) when PLATFORM_DB_USER is set, else the POSTGRES_* pair.
+        "USER": _DB_USER,
+        "PASSWORD": _DB_SECRET,
         "HOST": env("POSTGRES_HOST", "localhost"),
         "PORT": env("POSTGRES_PORT", "5432"),
         "CONN_MAX_AGE": 60,

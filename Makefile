@@ -3,7 +3,7 @@ SHELL := /bin/bash
 # Random per-checkout secrets for the local stack (git-ignored). Delete it and run
 # `docker compose ... down -v` to rotate them.
 STACK_ENV := .demo/stack.env
-COMPOSE := docker compose --env-file $(STACK_ENV) -f infra/compose/docker-compose.yml
+COMPOSE := docker compose -f infra/compose/docker-compose.yml
 PHONY_DB := db-roles db-roles-check stack-env
 .PHONY: $(PHONY_DB) help up down install generate vectors test test-backend test-realtime test-frontend lint images stack stack-seamless stack-down wallet-conformance reconcile demo-launch invariants e2e
 
