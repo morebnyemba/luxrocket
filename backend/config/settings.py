@@ -202,6 +202,21 @@ WALLET_BALANCE_TIMEOUT_MS = int(env("WALLET_BALANCE_TIMEOUT_MS", "1000"))
 RECON_INTERNAL_INTERVAL_S = int(env("RECON_INTERNAL_INTERVAL_S", "300"))
 RECON_OPERATOR_INTERVAL_S = int(env("RECON_OPERATOR_INTERVAL_S", "3600"))
 WEBHOOK_TIMEOUT_MS = int(env("WEBHOOK_TIMEOUT_MS", "5000"))
+
+# Seed-chain salts come from the drand "quicknet" beacon (doc 07 §6.1). A chain's drand round
+# must be published at least SEED_CHAIN_MIN_DELAY_S after its commitment.
+DRAND_URLS = [
+    u.strip()
+    for u in env("DRAND_URLS", "https://api.drand.sh,https://drand.cloudflare.com").split(",")
+    if u.strip()
+]
+DRAND_CHAIN_HASH = env(
+    "DRAND_CHAIN_HASH", "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971"
+)
+DRAND_GENESIS_TIME = int(env("DRAND_GENESIS_TIME", "1692803367"))
+DRAND_PERIOD_S = int(env("DRAND_PERIOD_S", "3"))
+DRAND_TIMEOUT_S = float(env("DRAND_TIMEOUT_S", "5"))
+SEED_CHAIN_MIN_DELAY_S = int(env("SEED_CHAIN_MIN_DELAY_S", "86400"))
 SANDBOX_DEBIT_UNKNOWN_RATE = float(env("SANDBOX_DEBIT_UNKNOWN_RATE", "0"))
 CONTRACTS_DIR = env("CONTRACTS_DIR", str(BASE_DIR.parent / "contracts"))
 DEMO_PAGES = env("DEMO_PAGES", "1" if DEBUG else "0") == "1"

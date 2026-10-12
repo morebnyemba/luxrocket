@@ -2,11 +2,12 @@ from django.contrib import admin
 from django.urls import include, path
 
 from luxrocket.api import demo_views, game_views, internal_views, operator_views
-from luxrocket.core.views import healthz, platform_keys
+from luxrocket.core.views import fairness_chains, healthz, platform_keys
 
 urlpatterns = [
     path("healthz", healthz, name="healthz"),
     path(".well-known/luxrocket-keys.json", platform_keys),
+    path(".well-known/luxrocket-chains.json", fairness_chains),
     # Operator API (signed, doc 09)
     path("operator/v1/sessions", operator_views.create_session),
     path("operator/v1/sessions/<str:session_id>/revoke", operator_views.revoke_session),

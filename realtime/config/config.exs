@@ -54,7 +54,18 @@ config :lux_rt, :platform,
 config :lux_rt, :fairness,
   chain_length: 100_000,
   checkpoint_every: 1_000,
-  seed_kek_b64: nil
+  seed_kek_b64: nil,
+  # Dev convenience: create a local-random ACTIVE chain when a stream has none. Production
+  # turns this off (runtime.exs) and plays only ceremony-committed, drand-salted chains.
+  auto_chain: true
+
+# Public randomness beacon for chain salts (doc 07 §6.1): drand "quicknet" (League of Entropy).
+# A chain's salt is the randomness of a round fixed at commitment, at least min_delay_s later.
+config :lux_rt, :drand,
+  chain_hash: "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971",
+  genesis_time: 1_692_803_367,
+  period_s: 3,
+  min_delay_s: 86_400
 
 # Configures the endpoint
 config :lux_rt, LuxRtWeb.Endpoint,

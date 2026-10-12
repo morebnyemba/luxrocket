@@ -62,6 +62,7 @@ files = [
     "luxrocket/wallet/reconciliation.py",
     "luxrocket/portal",
     "luxrocket/console",
+    "luxrocket/gaming/fairness.py",
 ]
 
 [tool.django-stubs]

@@ -29,10 +29,11 @@ until the Gate RM requirements in doc 19 §5 are met.
 | Cross-tenant isolation suite + route inventory (AC-OP-1) | ✅ | `backend/tests/test_portal.py` |
 | **Platform console** (doc 12): password + mandatory WebAuthn passkey (UV required) for every staff sign-in, passkey step-up for privileged writes, §4 role matrix, owner-only markets, operator onboarding/suspend, four-eyes real-money enablement and reactivation (DB-enforced requester ≠ approver), finance queue + retry, bet timeline, audited player search, discrepancy resolution, read-only rounds + journal, staff, audit + chain verification | ✅ `http://localhost:3003` | `backend/luxrocket/console`, `apps/admin` |
 | Shared console UI/API kit | ✅ | `packages/console-kit` |
-| **Game release controls**: certified, immutable rulesets (four-eyes approval with lab certificate), four-eyes stream binding adopted by Phoenix at the next round boundary, per-round ruleset journaling, Django verification that every round ran an approved ruleset, read-only seed-chain facts | ✅ console → Games | `gaming/rulesets.py`, `console/views.py`, `rounds/coordinator.ex` |
+| **Game release controls**: certified, immutable rulesets (four-eyes approval with lab certificate), four-eyes stream binding adopted by Phoenix at the next round boundary, per-round ruleset journaling, Django verification that every round ran an approved ruleset | ✅ console → Games | `gaming/rulesets.py`, `console/views.py`, `rounds/coordinator.ex` |
 | Django admin (break-glass / data inspection only) | ✅ `/django-admin/` | `*/admin.py` |
 | Money invariants checker | ✅ `make invariants` | `gaming/invariants.py` |
 | Tests | ✅ 159 Django, 33 Phoenix, 16 game-core, 9 E2E (4 gameplay multi-browser, 2 portal, 3 console with virtual security keys) | CI job `e2e` runs the full stack |
+| **Seed-chain ceremony**: chains committed to a future drand round, four-eyes activation with a platform-fetched beacon, engine plays only ACTIVE chains (switch at round boundary, pause when none/exhausted), signed public commitments, real-money gate on a drand-salted chain | ✅ console → Games, `/.well-known/luxrocket-chains.json` | `fairness/seed_chain.ex`, `gaming/fairness.py` |
 | One-command sandbox stack | ✅ `make stack` | `infra/compose/docker-compose.yml` |
 
 ## Deliberate interim deviations (tracked)
@@ -41,12 +42,12 @@ until the Gate RM requirements in doc 19 §5 are met.
 |-------------------|-----------|-----------------|
 | RabbitMQ for journal relay and platform events (ADR-015) | Authenticated internal HTTP from the same journal/outbox tables | Same delivery guarantees (durable source, at-least-once, dedupe, ordered with gap detection) with fewer moving parts. Swapping the transport touches only `Relay` and `outbox.relay_once`. |
 | Redis caches (ADR-014) | Not used yet | Nothing correctness-critical needs it; add for rate limits/caching at scale. |
-| Salt from a public randomness beacon (drand) | Random salt fixed at chain creation (`salt_source: local-random`) | Fine for sandbox; production ceremony must use drand (doc 07 §6.1). |
+| BLS verification of the drand beacon | Consistency check (`randomness = SHA-256(signature)`); signature published for auditors | Add BLS12-381 verification against the pinned quicknet key. Sandbox stacks still auto-create local-random chains (`SEED_AUTO_CHAIN`). |
 | Seed KEK in KMS/HSM | KEK from `SEED_KEK_B64` env (dev/test derive a throwaway key) | Move to KMS before real money (OQ-06). |
 | mTLS on internal calls | Shared bearer service token | Add mTLS on the private network. |
 | Postgres roles per service + RLS for the portal (ADR-019) | Single DB role; tenant isolation by session-derived operator + explicit filters, proven by the cross-tenant route suite | Add `portal_rw` role + `FORCE ROW LEVEL SECURITY` with `SET LOCAL app.operator_id` as defence in depth. |
 | Per-operator CSP `frame-ancestors` on a dynamic launch document | Static launch page; dev nginx allows any parent | Serve the launch document from the platform with per-operator CSP. |
-| Console: game versions & releases, seed-chain ceremony/activation, maintenance & drain, adjustments, analytics series, incidents, exports, IP allowlist (doc 12) | Not yet | Next console increments; approvals, step-up and audit primitives are in place. |
+| Console: game versions & releases, maintenance & drain, adjustments, analytics series, incidents, exports, IP allowlist (doc 12) | Not yet | Next console increments; approvals, step-up and audit primitives are in place. |
 | Portal extras (doc 13): domains with DNS verification, game settings & config versions, CSV/XLSX exports, operator-enforced MFA, HMAC credentials | Not yet | Next increments; the auth/audit/tenant core they need is in place. |
 | Daily WORM anchor of the audit-chain head | Not yet | `audit/verify` exposes the head hash; add the scheduled export to object storage. |
 | Seamless wallet adapter on aiohttp workers | Synchronous `httpx` pooled client inside the existing workers | Same contract and semantics; switch to async when wallet-call concurrency (not correctness) becomes the bottleneck. REAL sessions additionally require `real_money_enabled`, LIVE status and a seamless wallet — still gated by Gate RM (doc 19 §5). |

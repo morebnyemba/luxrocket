@@ -25,7 +25,20 @@ type StreamRow = {
   applied: { ruleset: string; version: number | null; round: number; approved: boolean | null } | null;
   operators: number;
 };
-type Chain = { chain_id: string; stream: string; length: number; terminal_hash: string; salt_source: string; status: string; created_at: string; rounds_used: number; usage_bp: number };
+type Chain = {
+  chain_id: string;
+  stream: string;
+  length: number;
+  terminal_hash: string;
+  salt_source: string;
+  status: string;
+  created_at: string;
+  rounds_used: number;
+  usage_bp: number;
+  drand_round: number | null;
+  drand_round_time: string | null;
+  beacon_due: boolean;
+};
 
 function Rulesets() {
   const { me } = useMe();
@@ -175,26 +188,57 @@ function Streams() {
   );
 }
 
+const CHAIN_TONE: Record<string, "good" | "warning" | "neutral"> = { ACTIVE: "good", COMMITTED: "warning" };
+
 function SeedChains() {
+  const { me } = useMe();
+  const canManage = me.permissions.includes("games.manage");
   const { data, error } = useResource<{ seed_chains: Chain[] }>(api, "games/seed-chains");
+  const [note, setNote] = useState("");
   return (
     <Card title="Seed chains">
-      <p className="mb-3 text-sm text-[var(--text-muted)]">Public facts only — seeds are never shown. Each round reveals the previous link of the hash chain.</p>
+      <p className="mb-3 text-sm text-[var(--text-muted)]">
+        Public facts only — seeds are never shown. A ceremony commits a chain to a future drand round; once that round is published, a
+        four-eyes approval salts it with the beacon and the engine switches to it at the next round boundary.
+      </p>
       {error && <Notice tone="critical">{error}</Notice>}
       {data && (
-        <Table head={["Stream", "Status", "Usage", "Terminal hash (commitment)", "Salt source", "Created"]} empty={!data.seed_chains.length}>
+        <Table head={["Stream", "Status", "Usage", "Terminal hash (commitment)", "Salt", "Created", ""]} empty={!data.seed_chains.length}>
           {data.seed_chains.map((c) => (
             <tr key={c.chain_id}>
               <td>{c.stream}</td>
-              <td><Status tone={c.status === "ACTIVE" ? "good" : "neutral"}>{c.status}</Status></td>
+              <td><Status tone={CHAIN_TONE[c.status] ?? "neutral"}>{c.status}</Status></td>
               <td className="tabular">{c.rounds_used.toLocaleString()} / {c.length.toLocaleString()} ({percentBp(c.usage_bp)})</td>
               <td><Mono>{c.terminal_hash}</Mono></td>
-              <td>{c.salt_source}</td>
+              <td className="text-xs">
+                {c.status === "COMMITTED" && c.drand_round
+                  ? `drand round ${c.drand_round} · ${c.beacon_due ? "published" : `due ${when(c.drand_round_time)}`}`
+                  : c.salt_source}
+              </td>
               <td className="text-xs">{when(c.created_at)}</td>
+              <td>
+                {canManage && c.status === "COMMITTED" && (
+                  <Button
+                    variant="ghost"
+                    disabled={!c.beacon_due}
+                    onClick={async () => {
+                      try {
+                        await api.post("approvals", { action: "ACTIVATE_SEED_CHAIN", subject: c.chain_id, reason: "seed chain ceremony" });
+                        setNote(`Activation requested for ${c.stream} — a different approver must decide.`);
+                      } catch (err) {
+                        setNote(message(err));
+                      }
+                    }}
+                  >
+                    Request activation
+                  </Button>
+                )}
+              </td>
             </tr>
           ))}
         </Table>
       )}
+      {note && <p role="status" className="mt-2 text-sm">{note}</p>}
     </Card>
   );
 }

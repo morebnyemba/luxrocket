@@ -24,3 +24,14 @@ def platform_keys(request: HttpRequest) -> HttpResponse:
     resp = JsonResponse({"keys": platform_public_keys()})
     resp["Cache-Control"] = "public, max-age=300"
     return resp
+
+
+@require_http_methods(["GET"])
+def fairness_chains(request: HttpRequest) -> HttpResponse:
+    """Seed-chain commitments for auditors and players (doc 07 §6.1): terminal hash, drand
+    round, salt once activated, and the platform's signature over each commitment."""
+    from luxrocket.gaming import fairness
+
+    resp = JsonResponse({"chains": [fairness.public_view(c) for c in fairness.chains()[:100]]})
+    resp["Cache-Control"] = "public, max-age=60"
+    return resp

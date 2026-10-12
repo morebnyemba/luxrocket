@@ -36,7 +36,10 @@ config :lux_rt, :platform_client, LuxRt.PlatformStub
 config :lux_rt, :fairness,
   chain_length: 2_000,
   checkpoint_every: 100,
-  seed_kek_b64: nil
+  seed_kek_b64: nil,
+  auto_chain: true
+
+config :lux_rt, :drand, min_delay_s: 60
 
 config :lux_rt, :dev_derived_kek, true
 

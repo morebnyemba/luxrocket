@@ -8,6 +8,10 @@ defmodule LuxRt.Rounds.Coordinator do
 
   States: `:booting -> :betting_open -> :betting_closed -> :flying -> :cooldown -> ...`.
   On (re)start, an interrupted round is voided (ADR-005) before a new one is created.
+
+  Rounds are only ever created on the stream's ACTIVE seed chain (doc 07 §6.1). A newly
+  activated chain is adopted at the next round boundary; with no playable chain (none
+  activated yet, or the current one exhausted) the stream waits in `:halted`.
   """
 
   @behaviour :gen_statem
@@ -20,6 +24,7 @@ defmodule LuxRt.Rounds.Coordinator do
   alias LuxRt.Rounds.{Journal, Lease, Relay, Snapshot}
 
   @unit 10_000
+  @halt_retry_ms 5_000
 
   defstruct [
     :stream,
@@ -111,11 +116,11 @@ defmodule LuxRt.Rounds.Coordinator do
   def handle_event(:state_timeout, :boot, :booting, data) do
     case Lease.acquire(data.stream, data.holder, data.timing.lease_ttl_ms) do
       {:ok, token} ->
-        data = %{data | token: token, chain: SeedChain.load_or_create(data.stream)}
+        data = %{data | token: token, chain: SeedChain.ensure_active(data.stream)}
         data = data |> recover() |> load_rules()
         Logger.info("coordinator for #{data.stream} active (fencing token #{token})")
-        data = create_round(data, now())
-        {:next_state, :betting_open, data, [renew_timer(data)]}
+        {state, data} = next_round(data)
+        {:next_state, state, data, [renew_timer(data)]}
 
       :taken ->
         {:keep_state_and_data, [{:state_timeout, 1_000, :boot}]}
@@ -244,7 +249,26 @@ defmodule LuxRt.Rounds.Coordinator do
   end
 
   def handle_event(:state_timeout, :next_round, :cooldown, data) do
-    {:next_state, :betting_open, create_round(data, now())}
+    {state, data} = next_round(data)
+    {:next_state, state, data}
+  end
+
+  # --- halted: no playable seed chain; the lease is kept and renewed meanwhile ---
+  def handle_event(:enter, _old, :halted, data) do
+    Logger.error(
+      "#{data.stream}: no playable seed chain (commit and activate one, doc 07 §6.1); rounds paused"
+    )
+
+    {:keep_state_and_data, [{:state_timeout, @halt_retry_ms, :retry}]}
+  end
+
+  def handle_event(:state_timeout, :retry, :halted, data) do
+    SeedChain.ensure_active(data.stream)
+
+    case next_round(data) do
+      {:halted, data} -> {:keep_state, data, [{:state_timeout, @halt_retry_ms, :retry}]}
+      {state, data} -> {:next_state, state, data}
+    end
   end
 
   # ---- commands ----------------------------------------------------------------------------
@@ -349,16 +373,15 @@ defmodule LuxRt.Rounds.Coordinator do
             void_interrupted(data, round_id, chain_id, chain_index)
           end
 
-        next_index = if chain_id == data.chain.chain_id, do: chain_index + 1, else: 1
+        next_index = if chain_id == chain_id(data), do: chain_index + 1, else: 1
         Map.put(data, :next, %{number: number + 1, chain_index: next_index})
     end
   end
 
   defp void_interrupted(data, round_id, chain_id, chain_index) do
-    seed =
-      if chain_id == data.chain.chain_id,
-        do: data.chain |> SeedChain.round_seed(chain_index) |> hex(),
-        else: ""
+    # The interrupted round may belong to a chain that has since been rotated out.
+    chain = if chain_id == chain_id(data), do: data.chain, else: SeedChain.load(chain_id)
+    seed = if chain, do: chain |> SeedChain.round_seed(chain_index) |> hex(), else: ""
 
     Logger.warning("voiding interrupted round #{round_id} (coordinator failover)")
     data = %{data | round: %{id: round_id}}
@@ -376,6 +399,49 @@ defmodule LuxRt.Rounds.Coordinator do
     )
 
     broadcast(data, "ROUND_VOIDED", %{reason: "COORDINATOR_FAILOVER", seed: seed})
+  end
+
+  defp chain_id(%{chain: nil}), do: nil
+  defp chain_id(%{chain: chain}), do: chain.chain_id
+
+  defp next_round(data) do
+    case prepare_chain(data) do
+      {:ok, data} -> {:betting_open, create_round(data, now())}
+      :halt -> {:halted, data}
+    end
+  end
+
+  # Checked before every round: adopt a newly activated chain (rotation happens only at a
+  # round boundary) and never play a chain that is exhausted or no longer ACTIVE.
+  defp prepare_chain(data) do
+    current = chain_id(data)
+    k = data.next.chain_index
+
+    case SeedChain.active_id(data.stream) do
+      nil ->
+        :halt
+
+      ^current when k > data.chain.length ->
+        Logger.error("#{data.stream}: seed chain #{current} exhausted")
+        SeedChain.exhaust(current)
+        :halt
+
+      ^current ->
+        if k == div(data.chain.length * 9, 10),
+          do: Logger.warning("#{data.stream}: seed chain #{current} is 90 % used; run a ceremony")
+
+        {:ok, data}
+
+      other ->
+        case SeedChain.load(other) do
+          nil ->
+            :halt
+
+          chain ->
+            Logger.info("#{data.stream}: switching to seed chain #{other} at round boundary")
+            {:ok, %{data | chain: chain, next: %{data.next | chain_index: 1}}}
+        end
+    end
   end
 
   defp create_round(data, opens_at) do

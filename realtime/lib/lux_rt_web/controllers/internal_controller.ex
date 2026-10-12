@@ -1,7 +1,9 @@
 defmodule LuxRtWeb.InternalController do
   @moduledoc """
   Platform -> real-time events relayed from Django's outbox (doc 02 §4 channel ③): settlement
-  confirmations, session revocations and stream ruleset bindings. At-least-once; de-duplicated by event id.
+  confirmations, session revocations, stream ruleset bindings and seed-chain activations.
+  At-least-once; de-duplicated by event id (activation is idempotent in the database instead,
+  so a node-local de-dup cache can never swallow it).
   """
   use LuxRtWeb, :controller
 
@@ -24,6 +26,11 @@ defmodule LuxRtWeb.InternalController do
       [value] -> if Plug.Crypto.secure_compare(value, expected), do: :ok, else: :error
       _ -> :error
     end
+  end
+
+  defp handle(%{"type" => "seed_chain.activate", "payload" => p}) do
+    # Written to rt.seed_chain; the coordinator (on whichever node) adopts it at its next round.
+    LuxRt.Fairness.SeedChain.activate(p)
   end
 
   defp handle(%{"event_id" => id} = event) do

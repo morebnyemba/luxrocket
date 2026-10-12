@@ -6,6 +6,7 @@ import uuid
 from datetime import timedelta
 from typing import Any
 
+from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.db import connection, transaction
 from django.db.models import Count, Sum
@@ -41,7 +42,7 @@ from luxrocket.console.models import (
 )
 from luxrocket.core.errors import problem
 from luxrocket.core.ids import parse_public_id, tx_public_id
-from luxrocket.gaming import rulesets
+from luxrocket.gaming import fairness, rulesets
 from luxrocket.gaming.models import Bet, GameRound, GameRuleset, GameSession, StreamConfig
 from luxrocket.operators.models import (
     Market,
@@ -62,6 +63,7 @@ from luxrocket.wallet.models import (
     WalletTransaction,
     WalletTxAttempt,
 )
+from luxrocket.wallet.outbox import emit
 
 S = PlatformSession.Stage
 PAGE = 50
@@ -539,12 +541,14 @@ REQUEST_PERM: dict[str, str] = {
     ApprovalRequest.Action.REACTIVATE_OPERATOR: "operators.manage",
     ApprovalRequest.Action.APPROVE_RULESET: "games.manage",
     ApprovalRequest.Action.BIND_RULESET: "games.manage",
+    ApprovalRequest.Action.ACTIVATE_SEED_CHAIN: "games.manage",
 }
 APPROVE_PERM: dict[str, str] = {
     ApprovalRequest.Action.ENABLE_REAL_MONEY: "realmoney.approve",
     ApprovalRequest.Action.REACTIVATE_OPERATOR: "reactivate.approve",
     ApprovalRequest.Action.APPROVE_RULESET: "games.approve",
     ApprovalRequest.Action.BIND_RULESET: "games.approve",
+    ApprovalRequest.Action.ACTIVATE_SEED_CHAIN: "games.approve",
 }
 OPERATOR_ACTIONS = {
     ApprovalRequest.Action.ENABLE_REAL_MONEY,
@@ -593,6 +597,12 @@ def _preconditions(a: ApprovalRequest) -> str | None:
                 status=Market.Status.REAL,
             ).exists():
                 return "none of the operator's jurisdictions is open for real money"
+            active = fairness.active_chain(op.stream_slug)
+            if active is None or not active.drand_salted:
+                return (
+                    f"stream {op.stream_slug} is not running a ceremony seed chain "
+                    "(drand-salted and four-eyes activated, doc 07 §6.1)"
+                )
         elif op.status != Operator.Status.SUSPENDED:
             return "operator is not suspended"
         return None
@@ -611,7 +621,45 @@ def _preconditions(a: ApprovalRequest) -> str | None:
         if current is not None and current.ruleset_id == rs.code:
             return "the stream already uses this ruleset"
         return None
+    if action == ApprovalRequest.Action.ACTIVATE_SEED_CHAIN:
+        return _chain_preconditions(a.subject, payload)
     return "unknown action"
+
+
+def _chain_preconditions(chain_id: str, payload: dict[str, Any]) -> str | None:
+    c = fairness.chain(chain_id)
+    if c is None or c.status != "COMMITTED":
+        return "only a COMMITTED seed chain can be activated"
+    if c.drand_round is None or c.committed_at is None:
+        return "the chain was not committed to a drand round"
+    if c.drand_chain_hash != settings.DRAND_CHAIN_HASH:
+        return "the chain is committed to an untrusted drand network"
+    if fairness.round_time(c.drand_round) < c.committed_at + fairness.min_delay():
+        return "the drand round was too close to the commitment"
+    if str(payload.get("drand_round", "")) != str(c.drand_round):
+        return "the beacon is not for the committed drand round"
+    if not fairness.beacon_consistent(
+        str(payload.get("randomness", "")), str(payload.get("signature", ""))
+    ):
+        return "the beacon is inconsistent"
+    return None
+
+
+def _server_payload(action: str, subject: str) -> dict[str, str] | None:
+    """Payloads the platform derives itself instead of trusting the requester's input."""
+    if action != ApprovalRequest.Action.ACTIVATE_SEED_CHAIN:
+        return None
+    c = fairness.chain(subject)
+    if c is None or c.status != "COMMITTED" or c.drand_round is None or not c.drand_chain_hash:
+        return {}  # the preconditions explain why
+    b = fairness.fetch_beacon(c.drand_round, c.drand_chain_hash)
+    return {
+        "stream": c.stream,
+        "drand_round": str(b.round),
+        "randomness": b.randomness,
+        "signature": b.signature,
+        "terminal_hash": c.terminal_hash,
+    }
 
 
 def _new_request(
@@ -627,6 +675,12 @@ def _new_request(
     payload = {k: str(v) for k, v in (data.get("payload") or {}).items()}
     if not reason:
         return problem("REASON_REQUIRED", 422)
+    try:
+        derived = _server_payload(action, subject)
+    except fairness.BeaconError as exc:
+        return problem("BEACON_UNAVAILABLE", 409, str(exc))
+    if derived is not None:
+        payload = derived
     draft = ApprovalRequest(
         action=action,
         operator=operator,
@@ -754,6 +808,18 @@ def _execute(a: ApprovalRequest, approver: PlatformStaff) -> None:
         rs.save()
     elif a.action == ApprovalRequest.Action.BIND_RULESET:
         rulesets.bind(a.subject, GameRuleset.objects.get(code=a.payload["ruleset"]))
+    elif a.action == ApprovalRequest.Action.ACTIVATE_SEED_CHAIN:
+        # Phoenix applies it idempotently and adopts the chain at the stream's next round.
+        emit(
+            "seed_chain.activate",
+            {
+                "chain_id": a.subject,
+                "stream": a.payload["stream"],
+                "drand_round": int(a.payload["drand_round"]),
+                "randomness": a.payload["randomness"],
+                "signature": a.payload["signature"],
+            },
+        )
 
 
 # ---- Finance ----------------------------------------------------------------------------------
@@ -1016,35 +1082,17 @@ def game_streams(request: HttpRequest, ctx: Ctx) -> HttpResponse:
 @console_view("games.read")
 def seed_chains(request: HttpRequest, ctx: Ctx) -> HttpResponse:
     """Public chain facts only. The encrypted root seed and checkpoints are never selected."""
-    chains: list[dict[str, Any]] = []
-    with connection.cursor() as cur:
-        cur.execute("SELECT to_regclass('rt.seed_chain') IS NOT NULL")
-        row = cur.fetchone()
-        if row and row[0]:
-            cur.execute(
-                """
-                SELECT c.chain_id::text, c.stream_id, c.length, c.terminal_hash, c.salt,
-                       c.salt_source, c.status, c.inserted_at,
-                       (SELECT max(r.chain_index) FROM rt.round r WHERE r.chain_id = c.chain_id)
-                  FROM rt.seed_chain c ORDER BY c.inserted_at DESC
-                """
-            )
-            for cid, stream, length, terminal, salt, source, status, at, used in cur.fetchall():
-                chains.append(
-                    {
-                        "chain_id": cid,
-                        "stream": stream,
-                        "length": length,
-                        "terminal_hash": terminal,
-                        "salt": salt,
-                        "salt_source": source,
-                        "status": status,
-                        "created_at": _iso(at),
-                        "rounds_used": used or 0,
-                        "usage_bp": int((used or 0) * 10000 // length) if length else 0,
-                    }
-                )
-    return JsonResponse({"seed_chains": chains})
+    out = []
+    for c in fairness.chains():
+        view = fairness.public_view(c)
+        view["usage_bp"] = c.rounds_used * 10000 // c.length if c.length else 0
+        view["beacon_due"] = (
+            c.status == "COMMITTED"
+            and c.drand_round is not None
+            and fairness.round_time(c.drand_round) <= timezone.now()
+        )
+        out.append(view)
+    return JsonResponse({"seed_chains": out})
 
 
 # ---- Rounds (read-only: there is deliberately no write path, AC-ADM-2) -------------------------

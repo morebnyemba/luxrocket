@@ -114,6 +114,17 @@ Milestones are spaced in log-multiplier, so they arrive at roughly regular *time
 3. Publish `chain_id`, N, `terminal = s_N`, `formula_version`, `ruleset_hash`, and **a future drand round number R** (≥ 24 h ahead) — signed with the platform fairness key.
 4. When drand round R is published, `salt = drand.randomness(R)`; chain → `SALTED`. Activation requires an `approval_request`.
 
+**As built.** The ceremony is `LuxRt.Fairness.SeedChain.commit/2` (release task `seed_ceremony`, mix task
+`lux.seed_ceremony`); the network is drand *quicknet* (period 3 s, `randomness = SHA-256(signature)`).
+`COMMITTED → ACTIVE` happens only through a four-eyes `ACTIVATE_SEED_CHAIN` approval (doc 12 §5a); there is no
+separate `SALTED` state because salting and activation are one approved step. Statuses:
+`COMMITTED | ACTIVE | RETIRED | EXHAUSTED`, at most one `ACTIVE` per stream. The platform publishes each
+commitment as an Ed25519-signed statement (`LRCHAIN1`, chain id, stream, N, terminal, formula, drand network,
+round, commit time) at `/.well-known/luxrocket-chains.json`, with the salt and the drand BLS signature once
+active. Limitations: the platform and engine check the beacon's internal consistency, not the BLS signature
+(auditors verify it against the drand public key); step 1 runs on an engine node with the KEK, so the
+"isolated host" is an operational control, not a technical one, until the KEK moves to an HSM (OQ-06).
+
 ### 6.2 Per round
 - Round k (k = 1 … N) uses `seed_k = s_{N−k}`.
 - **Commitment** shown at `ROUND_OPEN`: `commitment_k = s_{N−k+1}` (the previous round's revealed seed, or `terminal` for k = 1).

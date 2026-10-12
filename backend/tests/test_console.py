@@ -27,6 +27,7 @@ from luxrocket.portal import audit
 from luxrocket.portal.models import AuditEvent, StaffUser
 from luxrocket.wallet.models import Discrepancy, ReconciliationRun, WalletTransaction
 from tests.factories import create_session, make_operator
+from tests.rt_chains import active_drand_chain
 from tests.soft_authenticator import SoftAuthenticator
 from tests.test_money_path import bet
 from tests.test_money_path import world as sandbox_world  # noqa: F401 (fixture)
@@ -273,7 +274,9 @@ def test_only_the_owner_changes_markets_and_closing_real_revokes_sessions(client
 # ---- Operators and four-eyes ------------------------------------------------------------------
 
 
-def _ready_for_real_money(op: Operator):
+def _ready_for_real_money(op: Operator, chain: bool = True):
+    if chain:
+        active_drand_chain(op.stream_slug)
     Market.objects.filter(country_code="ZW").update(status="REAL", evidence_ref="licence-1")
     op.wallet_kind, op.wallet_base_url = "SEAMLESS_V1", "https://wallet.op.test"
     op.wallet_conformance_passed_at = timezone.now()

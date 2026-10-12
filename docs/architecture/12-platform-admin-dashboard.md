@@ -126,9 +126,20 @@ No role can approve its own request (exception: `PLAT_OWNER` market changes, ADR
   `stream.config` through the outbox. Phoenix keeps it pending and adopts it when creating the **next** round,
   journaling `ruleset_code`/`ruleset_version` in `ROUND_CREATED`; on boot it syncs from
   `GET /internal/v1/streams/{stream}/config`, else the last journaled rules, else its static default. Django
-  marks a round verified only if its journaled parameters equal an approved ruleset. Seed chains: read-only
-  public facts (terminal hash, salt source, usage) — seeds are never selected.
-- Not yet: game versions & releases, seed-chain ceremony/activation, maintenance & drain requests to Phoenix,
+  marks a round verified only if its journaled parameters equal an approved ruleset.
+- **Seed chains (as built, doc 07 §6.1):** a key holder runs the ceremony
+  (`bin/lux_rt eval 'LuxRt.Release.seed_ceremony("global")'` or `mix lux.seed_ceremony`): the chain is
+  stored `COMMITTED` with its terminal hash and a drand quicknet round ≥ 24 h ahead. Once that round is
+  published, GAME_RELEASE requests `ACTIVATE_SEED_CHAIN`; the platform fetches the beacon itself (requester
+  input is ignored), checks `randomness = SHA-256(signature)`, the committed round, the trusted drand network
+  and the commit-to-round delay; RISK (or owner/superadmin) approves and the outbox emits
+  `seed_chain.activate`. Phoenix re-checks, salts and activates the chain idempotently (one ACTIVE per stream,
+  DB-enforced), retires the previous one and the coordinator switches at the next round boundary. With no
+  playable chain (none activated, or exhausted) the stream pauses rather than invent one; dev/sandbox stacks
+  set `SEED_AUTO_CHAIN=true` for a local-random chain. Commitments are published, Ed25519-signed with the
+  platform key, at `/.well-known/luxrocket-chains.json`. Real-money enablement requires the operator's
+  stream to be on an ACTIVE drand-salted chain.
+- Not yet: game versions & releases, maintenance & drain requests to Phoenix,
   adjustments (`ADJUSTMENT_CREDIT`), analytics time series, incidents register, exports, IP allowlist.
 
 ## 6. Acceptance criteria

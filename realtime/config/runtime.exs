@@ -53,6 +53,15 @@ if kek = System.get_env("SEED_KEK_B64") do
     seed_kek_b64: kek
 end
 
+if config_env() == :prod do
+  # Off unless explicitly enabled (sandbox stacks): production plays only activated chains.
+  config :lux_rt, :fairness, auto_chain: System.get_env("SEED_AUTO_CHAIN") == "true"
+
+  if delay = System.get_env("DRAND_MIN_DELAY_S") do
+    config :lux_rt, :drand, min_delay_s: String.to_integer(delay)
+  end
+end
+
 if config_env() == :prod and is_nil(System.get_env("SEED_KEK_B64")) do
   raise "SEED_KEK_B64 is required in production (32-byte key, base64)"
 end

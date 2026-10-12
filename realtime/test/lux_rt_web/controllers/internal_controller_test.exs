@@ -66,4 +66,25 @@ defmodule LuxRtWeb.InternalControllerTest do
 
     assert %{"accepted" => 1} = conn |> post_events([event]) |> json_response(200)
   end
+
+  test "seed-chain activation is applied even when redelivered", %{conn: conn} do
+    {:ok, facts} = LuxRt.Fairness.SeedChain.commit("act-test", delay_s: 60)
+    sig = :crypto.strong_rand_bytes(96)
+    randomness = Base.encode16(:crypto.hash(:sha256, sig), case: :lower)
+
+    event = %{
+      "event_id" => Ecto.UUID.generate(),
+      "type" => "seed_chain.activate",
+      "payload" => %{
+        "chain_id" => facts.chain_id,
+        "stream" => "act-test",
+        "drand_round" => facts.drand_round,
+        "randomness" => randomness,
+        "signature" => Base.encode16(sig, case: :lower)
+      }
+    }
+
+    assert %{"accepted" => 2} = conn |> post_events([event, event]) |> json_response(200)
+    assert LuxRt.Fairness.SeedChain.active_id("act-test") == facts.chain_id
+  end
 end

@@ -78,6 +78,7 @@ class ApprovalRequest(models.Model):
         REACTIVATE_OPERATOR = "REACTIVATE_OPERATOR"
         APPROVE_RULESET = "APPROVE_RULESET"
         BIND_RULESET = "BIND_RULESET"
+        ACTIVATE_SEED_CHAIN = "ACTIVATE_SEED_CHAIN"
 
     class Status(models.TextChoices):
         PENDING = "PENDING"
@@ -90,7 +91,7 @@ class ApprovalRequest(models.Model):
     operator = models.ForeignKey(
         Operator, null=True, blank=True, on_delete=models.PROTECT, related_name="approvals"
     )
-    # What the request is about: operator public id, ruleset code or stream slug.
+    # What the request is about: operator public id, ruleset code, stream slug or chain id.
     subject = models.CharField(max_length=80)
     payload = models.JSONField(default=dict)
     reason = models.TextField()

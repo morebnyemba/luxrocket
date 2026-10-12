@@ -92,6 +92,9 @@ services:
     environment:
       POSTGRES_HOST: postgres
       SEED_CHAIN_LENGTH: "100000"
+      # Sandbox stack: a local-random chain is created on first boot. Production leaves this
+      # unset and runs the drand ceremony (LuxRt.Release.seed_ceremony/2, doc 07 §6.1).
+      SEED_AUTO_CHAIN: "true"
       PHX_HOST: localhost
       PHX_SERVER: "true"
       PORT: "4000"
