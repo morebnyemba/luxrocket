@@ -7,6 +7,7 @@ from typing import Any
 from django.db import connection, transaction
 from django.utils import timezone
 
+from luxrocket.core import tenancy
 from luxrocket.portal.models import AuditEvent
 
 GENESIS = "0" * 64
@@ -44,7 +45,9 @@ def record(
     data: dict[str, Any] | None = None,
     ip: str | None = None,
 ) -> AuditEvent:
-    with transaction.atomic():
+    # One global chain: the head must be read across tenants, so appends leave the portal's
+    # row-level-security scope (the only place the portal does).
+    with tenancy.unscoped(), transaction.atomic():
         with connection.cursor() as cur:
             cur.execute("SELECT pg_advisory_xact_lock(%s)", [_LOCK_KEY])
         last = AuditEvent.objects.order_by("-seq").only("hash").first()

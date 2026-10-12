@@ -16,4 +16,9 @@ class DatabaseWrapper(base.DatabaseWrapper):
         if self.connection.info.dbname != self.settings_dict["NAME"]:
             return
         with self.connection.cursor() as cursor:
-            cursor.execute(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}")
+            # Checked first: with per-service roles (infra/postgres/roles.sql) the schema is
+            # pre-created and the platform user has no CREATE privilege on the database.
+            cursor.execute("SELECT to_regnamespace(%s) IS NULL", [SCHEMA])
+            row = cursor.fetchone()
+            if row and row[0]:
+                cursor.execute(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}")

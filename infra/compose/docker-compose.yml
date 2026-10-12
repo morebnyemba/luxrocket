@@ -1,6 +1,10 @@
 # Local stack. `make up` starts Postgres; `make stack` builds and runs everything in sandbox
 # mode (virtual credits). Every credential comes from ../../.demo/stack.env, generated with
-# random values by `make stack` and git-ignored — none are written in this file.
+# random values by `make stack` and git-ignored — none are written in this file. Run compose via
+# the Makefile (it passes --env-file) so the per-service database passwords interpolate.
+#
+# Database roles (ADR-019, infra/postgres/roles.sql): POSTGRES_USER is the superuser and is used
+# only by `db-roles`; Django connects as lr_platform, Phoenix as lr_realtime.
 name: luxrocket
 
 x-backend: &backend
@@ -10,6 +14,8 @@ x-backend: &backend
     DJANGO_DEBUG: "1"                     # sandbox/dev stack only; production sets 0
     DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,api"
     POSTGRES_HOST: postgres
+    POSTGRES_USER: lr_platform
+    POSTGRES_PASSWORD: ${PLATFORM_DB_PASSWORD:?run compose via make (stack.env)}
     GAME_ORIGIN: http://localhost:3000
     PLAY_BASE_URL: http://localhost:3000
     REALTIME_INTERNAL_URL: http://realtime:4000
@@ -37,6 +43,27 @@ services:
     ports: ["127.0.0.1:5672:5672", "127.0.0.1:15672:15672"]
     profiles: ["infra"]
 
+  # One-shot, as the superuser: per-service roles and schemas (idempotent; also adopts objects
+  # from stacks created before the split).
+  db-roles:
+    image: postgres:16-alpine
+    env_file: ../../.demo/stack.env
+    environment:
+      PGHOST: postgres
+      PLATFORM_DB_PASSWORD: ${PLATFORM_DB_PASSWORD:?run compose via make (stack.env)}
+      REALTIME_DB_PASSWORD: ${REALTIME_DB_PASSWORD:?run compose via make (stack.env)}
+    command:
+      - sh
+      - -c
+      - >-
+        PGPASSWORD="$$POSTGRES_PASSWORD" psql -v ON_ERROR_STOP=1 -q -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+        -v db="$$POSTGRES_DB" -v platform_user=lr_platform -v realtime_user=lr_realtime -v portal_role=lr_portal
+        -v platform_password="$$PLATFORM_DB_PASSWORD" -v realtime_password="$$REALTIME_DB_PASSWORD"
+        -f /roles.sql
+    volumes: ["../postgres/roles.sql:/roles.sql:ro"]
+    depends_on: { postgres: { condition: service_healthy } }
+    profiles: ["app"]
+
   # One-shot: Django migrations and the demo operator (key written to ./.demo).
   migrate:
     <<: *backend
@@ -47,12 +74,14 @@ services:
       DJANGO_DEBUG: "1"
       DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,api"
       POSTGRES_HOST: postgres
+      POSTGRES_USER: lr_platform
+      POSTGRES_PASSWORD: ${PLATFORM_DB_PASSWORD:?run compose via make (stack.env)}
       DEMO_WALLET_URL: ${DEMO_WALLET_URL:-}
       DEMO_WEBHOOK_URL: ${DEMO_WEBHOOK_URL:-}
     volumes: ["../../.demo:/demo"]
     # Local tooling only: writes the demo operator key into the host-mounted ./.demo directory.
     user: root
-    depends_on: { postgres: { condition: service_healthy } }
+    depends_on: { db-roles: { condition: service_completed_successfully } }
     profiles: ["app"]
 
   api:
@@ -91,6 +120,8 @@ services:
     env_file: ../../.demo/stack.env
     environment:
       POSTGRES_HOST: postgres
+      POSTGRES_USER: lr_realtime
+      POSTGRES_PASSWORD: ${REALTIME_DB_PASSWORD:?run compose via make (stack.env)}
       SEED_CHAIN_LENGTH: "100000"
       # Sandbox stack: a local-random chain is created on first boot. Production leaves this
       # unset and runs the drand ceremony (LuxRt.Release.seed_ceremony/2, doc 07 §6.1).

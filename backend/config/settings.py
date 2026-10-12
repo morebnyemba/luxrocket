@@ -142,6 +142,8 @@ PLATFORM_SIGNING_KID = env("PLATFORM_SIGNING_KID", "plat_dev" if DEBUG else None
 PORTAL_SECRETS_KEY_B64 = env(
     "PORTAL_SECRETS_KEY_B64", _dev_key("portal-secrets") if DEBUG else None
 )
+# NOLOGIN role the portal's request transactions run as, under row-level security (ADR-019).
+PORTAL_DB_ROLE = env("PORTAL_DB_ROLE", "lr_portal")
 PORTAL_SESSION_HOURS = int(env("PORTAL_SESSION_HOURS", "8"))
 PORTAL_IDLE_MINUTES = int(env("PORTAL_IDLE_MINUTES", "30"))
 PORTAL_STEP_UP_MINUTES = int(env("PORTAL_STEP_UP_MINUTES", "10"))

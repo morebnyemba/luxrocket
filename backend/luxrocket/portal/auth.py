@@ -17,6 +17,7 @@ from django.http import HttpRequest, HttpResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
+from luxrocket.core import tenancy
 from luxrocket.core.errors import problem
 from luxrocket.operators.models import Operator
 from luxrocket.portal import audit
@@ -179,7 +180,9 @@ def portal_view(
                     fresh = timezone.now() - timedelta(minutes=settings.PORTAL_STEP_UP_MINUTES)
                     if s.mfa_at is None or s.mfa_at < fresh:
                         return problem("STEP_UP_REQUIRED", 403)
-            response = view(request, ctx, *args, **kwargs)
+            # Everything the view queries runs under row-level security for this operator.
+            with tenancy.scoped(ctx.operator.pk):
+                response = view(request, ctx, *args, **kwargs)
             response["Cache-Control"] = "no-store"
             return response
 

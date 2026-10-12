@@ -56,6 +56,10 @@ make install   # uv sync, mix deps.get, pnpm install
 make test      # everything CI runs
 ```
 
+The operator portal runs its queries under Postgres row-level security as the NOLOGIN role
+`lr_portal` (ADR-019). A superuser database user creates it automatically on `migrate`; with a
+non-superuser local user, run `sudo -u postgres make db-roles` once.
+
 Run services locally:
 
 ```bash

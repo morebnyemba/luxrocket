@@ -34,6 +34,7 @@ until the Gate RM requirements in doc 19 §5 are met.
 | Money invariants checker | ✅ `make invariants` | `gaming/invariants.py` |
 | Tests | ✅ 159 Django, 33 Phoenix, 16 game-core, 9 E2E (4 gameplay multi-browser, 2 portal, 3 console with virtual security keys) | CI job `e2e` runs the full stack |
 | **Seed-chain ceremony**: chains committed to a future drand round, four-eyes activation with a platform-fetched beacon, engine plays only ACTIVE chains (switch at round boundary, pause when none/exhausted), signed public commitments, real-money gate on a drand-salted chain | ✅ console → Games, `/.well-known/luxrocket-chains.json` | `fairness/seed_chain.ex`, `gaming/fairness.py` |
+| **Per-service DB roles + portal RLS** (ADR-019): `lr_platform` / `lr_realtime` / `lr_portal`; every portal request runs under row-level security for its operator; least-privilege grants; seed ciphertext unreadable by the platform; boundary probe script | ✅ `make db-roles-check` | `core/tenancy.py`, `infra/postgres/` |
 | One-command sandbox stack | ✅ `make stack` | `infra/compose/docker-compose.yml` |
 
 ## Deliberate interim deviations (tracked)
@@ -45,7 +46,7 @@ until the Gate RM requirements in doc 19 §5 are met.
 | BLS verification of the drand beacon | Consistency check (`randomness = SHA-256(signature)`); signature published for auditors | Add BLS12-381 verification against the pinned quicknet key. Sandbox stacks still auto-create local-random chains (`SEED_AUTO_CHAIN`). |
 | Seed KEK in KMS/HSM | KEK from `SEED_KEK_B64` env (dev/test derive a throwaway key) | Move to KMS before real money (OQ-06). |
 | mTLS on internal calls | Shared bearer service token | Add mTLS on the private network. |
-| Postgres roles per service + RLS for the portal (ADR-019) | Single DB role; tenant isolation by session-derived operator + explicit filters, proven by the cross-tenant route suite | Add `portal_rw` role + `FORCE ROW LEVEL SECURITY` with `SET LOCAL app.operator_id` as defence in depth. |
+| Lint rule forbidding unscoped managers in operator-facing code (ADR-019 §2) | Not added; RLS (below) now catches a missing filter at the database | Add a ruff/AST check if portal code grows. |
 | Per-operator CSP `frame-ancestors` on a dynamic launch document | Static launch page; dev nginx allows any parent | Serve the launch document from the platform with per-operator CSP. |
 | Console: game versions & releases, maintenance & drain, adjustments, analytics series, incidents, exports, IP allowlist (doc 12) | Not yet | Next console increments; approvals, step-up and audit primitives are in place. |
 | Portal extras (doc 13): domains with DNS verification, game settings & config versions, CSV/XLSX exports, operator-enforced MFA, HMAC credentials | Not yet | Next increments; the auth/audit/tenant core they need is in place. |
@@ -70,4 +71,7 @@ open http://localhost:8000/demo/operator   # embedded via the SDK (postMessage h
 make e2e            # multi-browser end-to-end tests
 make invariants     # money-correctness checks
 make reconcile      # reconciliation now (also runs in the workers every 5 min / hourly)
+# stack: Django runs as lr_platform, Phoenix as lr_realtime (db-roles one-shot, infra/postgres/roles.sql)
+make db-roles-check DB=luxrocket PLATFORM_PW=... REALTIME_PW=...   # probe the role boundaries
+sudo -u postgres make db-roles      # single-user dev DB: create lr_portal for the portal's RLS
 ```

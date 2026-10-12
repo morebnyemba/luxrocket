@@ -131,6 +131,19 @@ Gate A was approved on 2026-10-10; all ADRs in the register are **Accepted**. La
 
 ## ADR-019 — Tenant isolation
 **Decision.** (1) Every tenant-owned table has `operator_id NOT NULL`. (2) Django access via repository/service functions requiring an explicit `TenantContext`; unscoped managers forbidden by lint rule in operator-facing code. (3) Operator-portal API uses DB role `portal_rw` with Postgres RLS policies `operator_id = current_setting('app.operator_id')::uuid`, set per request with `SET LOCAL`. (4) Cross-tenant tests for every endpoint. Platform admin uses a separate role without RLS but with full audit.
+**As built (2026-10-12).** Roles: `lr_platform` (Django; owns schema `platform`, reads `rt`, never
+writes it, cannot select encrypted seed columns), `lr_realtime` (Phoenix; owns `rt`, no access to
+`platform`), `lr_portal` (NOLOGIN, the `portal_rw` of the decision). Created by
+`infra/postgres/roles.sql` (run as superuser; idempotent; adopts objects of older single-user stacks) and
+probed by `infra/postgres/check-roles.sh`. Each portal request runs in one transaction under
+`SET LOCAL ROLE lr_portal` + `app.operator_id`; policies are `FOR ALL … USING/WITH CHECK` on the owning
+operator (directly, or through the parent row for child tables). We use `ENABLE` rather than `FORCE` RLS:
+the owner (`lr_platform`, used by workers and the platform console) is deliberately unrestricted, and
+`FORCE` would only bind the owner, which the portal never runs as. Grants are least-privilege per table
+(e.g. the operator row is updatable only in its wallet-routing columns); platform tables (console,
+outbox, nonces) are unreachable. `luxrocket/core/tenancy.py` is the single classification; it is
+re-applied after every `migrate`, and a test fails when a new table is unclassified. The global audit
+hash chain is appended via the one explicit `tenancy.unscoped()` escape. Not done: the lint rule of (2).
 
 ## ADR-020 — Round streams
 **Decision.** A `RoundStream` is a continuously running sequence of rounds bound to a `GameVersion` + `Ruleset` + seed chain. Operators are assigned to one stream per environment (default `global-main`). Jurisdictions requiring separately certified configurations get separate streams.
