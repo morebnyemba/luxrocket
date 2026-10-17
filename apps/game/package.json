@@ -12,7 +12,7 @@
     "@luxrocket/game-core": "workspace:*",
     "@luxrocket/protocol": "workspace:*",
     "next": "16.3.8",
-    "phoenix": "1.7.21",
+    "phoenix": "1.8.15",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "three": "0.180.0"
