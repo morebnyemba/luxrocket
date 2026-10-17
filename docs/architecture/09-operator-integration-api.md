@@ -119,7 +119,7 @@ Exceeded limits: `429` + `Retry-After`. Limits are per operator, configurable by
 |------|--------|---------|
 | 400 | `INVALID_REQUEST` | Schema violation (`errors[]` lists JSON pointers) |
 | 401 | `INVALID_SIGNATURE`, `TIMESTAMP_OUT_OF_WINDOW`, `NONCE_REUSED`, `UNKNOWN_KEY` | Auth failure (no detail beyond code) |
-| 403 | `OPERATOR_SUSPENDED`, `REAL_MONEY_DISABLED`, `JURISDICTION_NOT_PERMITTED`, `CURRENCY_NOT_ENABLED` | Policy |
+| 403 | `OPERATOR_SUSPENDED`, `REAL_MONEY_DISABLED`, `WALLET_NOT_CONFIGURED`, `JURISDICTION_NOT_PERMITTED`, `CURRENCY_NOT_ENABLED` | Policy |
 | 404 | `NOT_FOUND` | Unknown *or foreign-tenant* resource |
 | 409 | `IDEMPOTENCY_KEY_REUSED`, `STATE_CONFLICT` | |
 | 422 | `PLAYER_RESTRICTED`, `CONFIG_NOT_PERMITTED` | |
@@ -138,7 +138,7 @@ Base URL configured per operator. All requests signed (§3). All amounts are **s
 | `POST {base}/rollback` | Yes | 5 s |
 | `POST {base}/settle` | Optional (`send_settle_on_loss`) | 5 s |
 | `POST {base}/balance` | Optional (for in-game balance display) | 1 s |
-| `GET {base}/transactions/{transaction_id}` | Optional (speeds up unknown resolution) | 2 s |
+| `POST {base}/transactions/lookup` | Optional, **required for operator reconciliation** (`wallet/v1/lookup.*`) | 5 s |
 
 ### 6.1 Debit request
 ```json
@@ -163,7 +163,7 @@ Base URL configured per operator. All requests signed (§3). All amounts are **s
 }
 ```
 ### 6.2 Credit request
-Same envelope plus `"type": "WIN"`, `"multiplier_x100": 235`, `"amount"` = payout, `"debit_transaction_id"`. `amount` may be `"0"` only on `/settle`.
+Same envelope plus `"type": "WIN"`, `"multiplier_x10000": 23456`, `"amount"` = payout, `"debit_transaction_id"`. `amount` may be `"0"` only on `/settle`.
 
 ### 6.3 Rollback request
 ```json
@@ -190,12 +190,36 @@ Same envelope plus `"type": "WIN"`, `"multiplier_x100": 235`, `"amount"` = payou
   }
 }
 ```
+### 6.4a Balance (optional)
+`POST {base}/balance` with `{ "player_id", "currency", "session_id"?, "operator_session_token"? }` →
+`{ "status": "OK", "balance": "<minor units>", "currency": "USD" }`
+(`contracts/wallet/v1/balance.*.schema.json`). Used only for the in-game HUD; failures hide the figure
+and never block play.
+
 ### 6.5 Required operator semantics
 1. Same `transaction_id` ⇒ same effect once; replays return the original result with `duplicate: true`.
 2. `credit` and `rollback` MUST succeed for any previously debited bet regardless of session state or player restrictions (`SESSION_EXPIRED`/`PLAYER_BLOCKED` are not valid reasons to reject them).
 3. `rollback` of an unknown `transaction_id` ⇒ `OK` and the operator records a tombstone so a later `debit` with that id is rejected.
 4. HTTP 2xx with unparseable body, any 5xx, or timeout are treated by us as *unknown* — never as rejection.
 5. Business rejection is HTTP 200 with `status: REJECTED` and a `code`.
+6. The response MUST echo our `transaction_id`; a response for a different id, a 3xx, or a body
+   that fails the response schema is treated as *unknown*.
+
+### 6.6 How the platform calls the wallet (as built)
+- Requests are LR1-signed (§3) with the platform key; verify against `/.well-known/luxrocket-keys.json`.
+- Debit timeout = min(operator setting, platform cap 750 ms, time left before the betting cut-off − 100 ms).
+  A debit that cannot be confirmed before the cut-off becomes *unknown* and is rolled back.
+- Credits and rollbacks retry with backoff (1 s … 15 min, then hourly) for 72 h, then `NEEDS_ATTENTION`.
+- Each session snapshots its wallet routing at creation, so credits and rollbacks always reach the wallet
+  that took the stake, even if the operator is reconfigured mid-session.
+- Plain `http` wallet URLs are refused outside development (`WALLET_ALLOW_HTTP`).
+
+### 6.7 Reference wallet and conformance
+- `python -m luxrocket.wallet.simulator --keys-url …/.well-known/luxrocket-keys.json [--lose-rate …]` runs a
+  standalone reference implementation of this contract (Python + `cryptography` only) with fault injection.
+- `manage.py wallet_conformance --base-url https://… --player-id <test player>` runs signed calls that check
+  idempotent debit/credit/rollback, tombstoning, `INSUFFICIENT_FUNDS`, and signature enforcement. Passing it
+  is a precondition for `real_money_enabled`.
 
 ## 7. Webhooks (we notify the operator)
 
@@ -218,14 +242,26 @@ Delivered `POST` to registered URLs, signed (§3), at-least-once, retried 1 m, 5
   }
 }
 ```
-Example `bet.settled.data`: `{ "bet_id", "round_id", "player_id", "currency", "stake": "500", "outcome": "WIN", "multiplier_x100": 235, "payout": "1175", "transactions": ["tx_…","tx_…"] }`.
+**As built (v1):** event types `bet.settled`, `round.settled`, `transaction.needs_attention`
+(schema: `contracts/operator/v1/webhook.schema.json`; the type enum is open — ignore unknown types).
+- Signed with LR1 (§3) using the platform key, plus `LR-Event-Id` / `LR-Event-Type` headers. Any 2xx acknowledges.
+- Events are written in the same database transaction as the state change (outbox), then delivered
+  at-least-once: immediately, then retried after 1 m, 5 m, 15 m, 1 h, 6 h, 24 h; after that `FAILED`
+  (re-queue from the back-office).
+- `event_id` is **deterministic** per (type, subject, operator): the same fact always carries the same id,
+  so dedupe on it and re-emission can never produce a second event.
+- `bet.settled` fires when the settlement is final (LOSS at crash; WIN/REFUND when the wallet confirms).
+  `round.settled` carries per-currency `stake` and `payout` totals for your bets only; `payout` includes
+  refunded stakes, so `stake − payout` is your round result. Transaction ids match the wallet calls.
+
+Example `bet.settled.data`: `{ "bet_id", "round_id", "player_id", "currency", "stake": "500", "outcome": "WIN", "multiplier_x10000": 23456, "payout": "1172", "transactions": ["tx_…","tx_…"] }`.
 
 ## 8. Settlement response (operator queries a bet)
 `GET /bets/{bet_id}` →
 ```json
 { "bet_id": "bet_…", "round_id": "rnd_…", "player_id": "p-778", "panel": 1,
-  "currency": "USD", "stake": "500", "auto_cashout_x100": 1000,
-  "status": "CASHED_OUT", "cashout_x100": 1000, "payout": "5000",
+  "currency": "USD", "stake": "500", "auto_cashout_x10000": 100000,
+  "status": "CASHED_OUT", "cashout_x10000": 100000, "payout": "5000",
   "settlement": { "outcome": "WIN", "status": "CONFIRMED", "confirmed_at": "…" },
   "transactions": [
     { "transaction_id": "tx_…", "type": "DEBIT", "amount": "500", "status": "SUCCEEDED" },

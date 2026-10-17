@@ -1,0 +1,13 @@
+{
+  "name": "@luxrocket/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Operator embed SDK: mounts the game iframe and delivers the launch token by postMessage (doc 11 §3).",
+  "main": "src/luxrocket-embed.js",
+  "files": ["src"],
+  "scripts": {
+    "lint": "node --check src/luxrocket-embed.js",
+    "typecheck": "node --check src/luxrocket-embed.js",
+    "test": "node --check src/luxrocket-embed.js"
+  }
+}

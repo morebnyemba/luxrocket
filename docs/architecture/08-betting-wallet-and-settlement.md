@@ -4,7 +4,7 @@
 
 - Each session has `panels = ruleset.panels` (default 2) independent panels, indexed 0..N−1.
 - **At most one bet per panel per player per round** (DB unique constraint across sessions/tabs).
-- Per-panel state: stake, `bet_id`, acceptance status, `auto_cashout_x100`, cash-out request state, confirmed cash-out (`cashout_x100`, `payout_minor`), potential return (display only), settlement status, error/recovery state.
+- Per-panel state: stake, `bet_id`, acceptance status, `auto_cashout_x10000`, cash-out request state, confirmed cash-out (`cashout_x10000`, `payout_minor`), potential return (display only), settlement status, error/recovery state.
 - Panels share the round and crash point; nothing else. One panel's cash-out, rejection or error never changes the other's state.
 - Auto cash-out target is fixed at placement (v1). Changing it mid-flight is excluded to avoid a race with the coordinator's auto timer (OQ-22).
 - No autoplay/auto-bet in v1 (responsible-gambling concern; several regulators restrict autoplay; OQ-23).
@@ -144,10 +144,10 @@ sequenceDiagram
   G->>C: cash_out(stamped)
   C->>C: serialised with crash: FLYING ∧ received_at < crash_at ∧ bet ACTIVE ∧ not cashed
   alt accepted
-    C->>C: cashout_x100 = curve[received_at − launch_at], payout = min(floor(stake·k/100), max_win)
+    C->>C: cashout_x10000 = curve[received_at − launch_at], payout = min(floor(stake·k/10000), max_win)
     C->>J: CASHOUT_ACCEPTED (fenced, ≤10 ms batch)
     J-->>C: flushed
-    C-->>P: CASHOUT_ACCEPTED {bet_id, cashout_x100, payout}
+    C-->>P: CASHOUT_ACCEPTED {bet_id, cashout_x10000, payout}
     J-)MQ: relay (publisher confirms)
     MQ-)K: rt.events CASHOUT_ACCEPTED
     K->>K: dedupe event_id, recompute payout (must match), bet CASHED_OUT, ledger, wallet_tx CREDIT PENDING, outbox
@@ -236,6 +236,25 @@ sequenceDiagram
   R->>PL: items + report
   R->>A: daily reconciliation report per operator
 ```
+
+**As built** (`backend/luxrocket/wallet/reconciliation.py`, scheduled in the workers, `manage.py reconcile`):
+
+| Check (internal, every 5 min, 2-min grace) | Action |
+|---|---|
+| Bet stuck in `PENDING_DEBIT` (process died around the debit call) | **Auto:** mark debit uncertain, release exposure, roll back |
+| `DEBIT_UNKNOWN` without a rollback job | **Auto:** enqueue rollback |
+| `CASHED_OUT` without a credit job, settlement consistent | **Auto:** enqueue credit (same deterministic tx id) — else OPEN |
+| Excluded/voided bet with a recorded debit and no rollback | **Auto** if the refund decision is in the ledger — else OPEN |
+| Settlement PENDING although its credit/rollback succeeded | **Auto:** confirm (+ `bet.settled` webhook) |
+| Live bet in a finished round · wallet tx / settlement `NEEDS_ATTENTION` · unverified outcome · clearing accounts not zero for a finished bet | OPEN (critical) |
+
+Operator reconciliation (hourly, incremental by `updated_at`, 10-min lag) does **not** pull a day file: it asks
+the operator's optional `POST {base}/transactions/lookup` about *our* terminal transaction ids in batches of 200
+(every id originates with us, so this covers both directions with no day-boundary ambiguity, and it confirms
+tombstoned debits stay `VOIDED`). Ours SUCCEEDED vs theirs not `OK` → `MISSING_AT_OPERATOR`; amount/currency
+differs → `AMOUNT_MISMATCH`; a debit we recorded as rejected that they applied → **auto** rollback (refund).
+A failing lookup marks the run `UNAVAILABLE` and the same window is retried. New OPEN items with an operator
+emit `reconciliation.discrepancy`. One OPEN item per (kind, subject) however many runs see it.
 
 Resolution of open items is a portal/admin workflow with mandatory notes; any monetary correction is a new `ADJUSTMENT_CREDIT` (four-eyes approved), never an edit.
 

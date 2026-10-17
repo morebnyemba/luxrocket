@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.luxrocket.example/ws/v1/round-snapshot.schema.json",
+  "title": "ROUND_SNAPSHOT",
+  "type": "object",
+  "required": [
+    "stream_id",
+    "seq",
+    "server_ts",
+    "round"
+  ],
+  "properties": {
+    "stream_id": {
+      "type": "string"
+    },
+    "seq": {
+      "type": "integer"
+    },
+    "server_ts": {
+      "type": "integer"
+    },
+    "round": {
+      "type": "object",
+      "required": [
+        "round_id",
+        "state",
+        "number"
+      ],
+      "properties": {
+        "round_id": {
+          "type": "string"
+        },
+        "number": {
+          "type": "integer"
+        },
+        "state": {
+          "enum": [
+            "PENDING",
+            "BETTING_OPEN",
+            "BETTING_CLOSED",
+            "FLYING",
+            "CRASHED",
+            "VOIDED"
+          ]
+        },
+        "opens_at": {
+          "type": "integer"
+        },
+        "close_at": {
+          "type": "integer"
+        },
+        "launch_at": {
+          "type": "integer"
+        },
+        "commitment": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "curve": {
+          "type": "object",
+          "required": [
+            "kind",
+            "lambda_per_ms",
+            "table_hash"
+          ],
+          "properties": {
+            "kind": {
+              "const": "exp"
+            },
+            "lambda_per_ms": {
+              "type": "string"
+            },
+            "table_hash": {
+              "type": "string"
+            }
+          }
+        },
+        "crash_x10000": {
+          "type": "integer",
+          "minimum": 10000,
+          "maximum": 100000000,
+          "description": "Present ONLY when state is CRASHED",
+          "multipleOf": 100
+        },
+        "seed": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Present ONLY when state is CRASHED or VOIDED"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "not": {
+                  "const": "CRASHED"
+                }
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "crash_x10000"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "PENDING",
+                  "BETTING_OPEN",
+                  "BETTING_CLOSED",
+                  "FLYING"
+                ]
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "seed"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "player_bets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "panel",
+          "status"
+        ],
+        "properties": {
+          "panel": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "bet_id": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "ACCEPTED",
+              "ACTIVE",
+              "CASHED_OUT",
+              "LOST",
+              "REJECTED",
+              "REFUND_PENDING",
+              "REFUNDED"
+            ]
+          },
+          "stake": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,17}$",
+            "description": "Positive integer amount in minor units, as a string"
+          },
+          "auto_cashout_x10000": {
+            "type": "integer",
+            "minimum": 10000,
+            "maximum": 100000000,
+            "description": "Multiplier in ten-thousandths restricted to the 0.01x grid",
+            "multipleOf": 100
+          },
+          "cashout_x10000": {
+            "type": "integer",
+            "minimum": 10000,
+            "maximum": 100000000,
+            "description": "Multiplier in ten-thousandths (10000 = 1.00x)"
+          },
+          "payout": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,17})$",
+            "description": "Integer amount in currency minor units, as a string"
+          },
+          "settlement": {
+            "enum": [
+              "NONE",
+              "PENDING",
+              "CONFIRMED"
+            ]
+          }
+        }
+      }
+    },
+    "recent_crashes": {
+      "type": "array",
+      "maxItems": 30,
+      "items": {
+        "type": "integer",
+        "minimum": 10000,
+        "maximum": 100000000,
+        "description": "Multiplier in ten-thousandths restricted to the 0.01x grid",
+        "multipleOf": 100
+      }
+    }
+  }
+}

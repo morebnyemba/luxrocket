@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.luxrocket.example/operator/v1/session-create.request.schema.json",
+  "title": "Create launch session (operator -> platform)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "player",
+    "currency",
+    "game",
+    "mode"
+  ],
+  "properties": {
+    "player": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "country"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "alias": {
+          "type": "string",
+          "maxLength": 24
+        },
+        "country": {
+          "type": "string",
+          "pattern": "^[A-Z]{2}$"
+        }
+      }
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$"
+    },
+    "game": {
+      "const": "lux-rocket"
+    },
+    "mode": {
+      "enum": [
+        "REAL",
+        "SANDBOX"
+      ]
+    },
+    "locale": {
+      "type": "string",
+      "default": "en"
+    },
+    "operator_session_token": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "return_url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "rg": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "session_reminder_minutes": {
+          "type": "integer",
+          "minimum": 5
+        },
+        "session_time_limit_minutes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

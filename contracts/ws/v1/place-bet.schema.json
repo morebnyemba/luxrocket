@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.luxrocket.example/ws/v1/place-bet.schema.json",
+  "title": "PLACE_BET command",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type",
+    "v",
+    "command_id",
+    "round_id",
+    "data"
+  ],
+  "properties": {
+    "type": {
+      "const": "PLACE_BET"
+    },
+    "v": {
+      "const": 1
+    },
+    "command_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "round_id": {
+      "type": "string"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "panel",
+        "stake"
+      ],
+      "properties": {
+        "panel": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 7
+        },
+        "stake": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,17}$",
+          "description": "Positive integer amount in minor units, as a string"
+        },
+        "auto_cashout_x10000": {
+          "type": "integer",
+          "minimum": 10100,
+          "maximum": 100000000,
+          "description": "Multiplier in ten-thousandths restricted to the 0.01x grid",
+          "multipleOf": 100
+        }
+      }
+    }
+  }
+}

@@ -6,11 +6,12 @@
 
 | Symbol | Ruleset field | Proposed default | Approval |
 |--------|---------------|------------------|----------|
-| e | `house_edge_bp` | 300 bp (3 %, RTP 97 %) | **OQ-13** |
+| e | `house_edge_bp` | **300 bp (3 %, RTP 97 %)** | Decided 2026-10-10 (OQ-13) |
 | λ | `curve_lambda_per_ms` | 6 × 10⁻⁵ ms⁻¹ (2× at 11.55 s) | Product |
-| M | `max_multiplier_x100` | 1 000 000 (10 000×) | **OQ-14** |
+| M | `max_multiplier_x10000` | 100 000 000 (10 000×) | **OQ-14** |
 | W | `max_win_minor` (per operator × currency) | e.g. USD 10 000.00 | **OQ-14** |
-| — | `min_auto_cashout_x100` | 101 | — |
+| — | `min_auto_cashout_x10000` | 10 100 (1.01×) | — |
+| — | `multiplier_unit` | 1/10 000 (all multipliers are `*_x10000` integers) | Decided 2026-10-10 (OQ-18) |
 | — | `betting_window_ms` / `close_grace_ms` / `crash_grace_ms` / `cooldown_ms` | 7 000 / 1 000 / 50 / 2 000 | Product |
 | — | `formula_version` | `LR-CRASH-1` | — |
 | — | `curve_table_hash` | SHA-256 of the generated curve table (§3) | — |
@@ -24,17 +25,17 @@ h      = HMAC-SHA256(key = s, message = salt)            # 32 bytes
 r      = integer value of the first 52 bits of h (big-endian)   # 0 ≤ r < 2^52
 D      = 2^52
 raw    = floor( 100 · (10000 − e_bp) · D  /  (10000 · (D − r)) )   # exact integer division
-crash_x100 = clamp(raw, 100, M)
+crash_x10000 = 100 · clamp(raw, 100, M/100)   # crash points stay on the 0.01× grid
 ```
 
 All arithmetic is arbitrary-precision integer (Python `int`, Elixir integer, JS `BigInt`). No floating point is involved in the outcome.
 
 ### 2.1 Distribution
 
-Let U = r/D (uniform on a 2⁻⁵² grid in [0, 1)). Then `raw/100 ≈ (1−e)/(1−U)` and, for every integer k with 101 ≤ k ≤ M:
+Let U = r/D (uniform on a 2⁻⁵² grid in [0, 1)). Then `raw/100 ≈ (1−e)/(1−U)` and, for every integer k (in hundredths) with 101 ≤ k ≤ M/100:
 
 ```
-P(crash_x100 ≥ k) = 100·(1 − e) / k        (exact up to ±2⁻⁵²)
+P(raw ≥ k) = P(crash_x10000 ≥ 100·k) = 100·(1 − e) / k        (exact up to ±2⁻⁵²)
 ```
 
 Proof sketch: `raw ≥ k ⇔ 100(1−e)D/(D−r) ≥ k` (floor of a real is ≥ integer k iff the real is ≥ k) `⇔ r ≥ D − 100(1−e)D/k`; the number of admissible r out of D gives the probability.
@@ -43,7 +44,7 @@ Consequences (e = 3 %):
 
 | Event | Probability |
 |-------|-------------|
-| Instant crash at 1.00× (`crash_x100 = 100`) | 1 − 0.97/1.01 ≈ **3.96 %** |
+| Instant crash at 1.00× (`crash_x10000 = 10000`) | 1 − 0.97/1.01 ≈ **3.96 %** |
 | Reaches 2× | 48.5 % |
 | Reaches 5× | 19.4 % |
 | Reaches 10× | 9.7 % |
@@ -62,31 +63,31 @@ Continuous curve: `m(t) = exp(λ·t)`, t = ms since `launch_at`.
 To make server, verifier and auditors bit-identical across languages, the curve is **tabulated once per ruleset**:
 
 ```
-curve[t] = floor( 100 · exp(λ · t) )   for t = 0, 1, 2, … , T_max   (ms)
+curve[t] = floor( 10000 · exp(λ · t) )   for t = 0, 1, 2, … , T_max   (ms)
 ```
-computed offline with ≥ 50-digit decimal precision, stored as an artefact, hashed into the ruleset (`curve_table_hash`). T_max = smallest t with `curve[t] ≥ M` (≈ 153 500 ms for 10 000×; table ≈ 600 KB as int32, loaded once per node).
+computed offline with ≥ 50-digit decimal precision, stored as an artefact, hashed into the ruleset (`curve_table_hash`). T_max = smallest t with `curve[t] ≥ M` (≈ 153 500 ms for 10 000×; values ≤ 10⁸ fit int32; table ≈ 600 KB, loaded once per node).
 
-- **Crash time:** `t_crash = min{ t : curve[t] ≥ crash_x100 }`; `crash_at = launch_at + t_crash`.
-- **Manual cash-out** stamped at `t = received_at − launch_at` with `t < t_crash` → `cashout_x100 = curve[t]`. Because `curve` is non-decreasing and `t < t_crash`, `curve[t] ≤ crash_x100 − 1`. A manual cash-out can never equal or exceed the crash point.
-- **Auto cash-out** at target k fires at `t_k = min{ t : curve[t] ≥ k }` and pays **exactly k**, iff `k ≤ crash_x100` (**tie goes to the player**, OQ-17).
+- **Crash time:** `t_crash = min{ t : curve[t] ≥ crash_x10000 }`; `crash_at = launch_at + t_crash`.
+- **Manual cash-out** stamped at `t = received_at − launch_at` with `t < t_crash` → `cashout_x10000 = curve[t]`. Because `curve` is non-decreasing and `t < t_crash`, `curve[t] < crash_x10000`. A manual cash-out can never equal or exceed the crash point. Manual cash-outs are priced at **0.0001×** resolution (OQ-18, decided).
+- **Auto cash-out** at target k fires at `t_k = min{ t : curve[t] ≥ k }` and pays **exactly k**, iff `k ≤ crash_x10000` (**tie goes to the player**, OQ-17).
 - **Client display** may use float `exp()`; it is presentation only.
 
 ## 4. Round end and caps
 
-1. `crash_x100 = 100` → instant crash at launch; all bets lose. Disclosed in rules ("The rocket can explode on the launchpad").
-2. `crash_x100 < M` → `ROUND_CRASHED{end_reason: CRASH}`; un-cashed bets lose.
-3. `crash_x100 = M` → `ROUND_CRASHED{end_reason: MAX_MULTIPLIER}`; **every still-active bet is cashed at M** ("journey complete"). This keeps RTP = 1 − e for players who hold to the end.
-4. **Max win per bet** W: each admitted bet gets an *effective target* `k_eff = min(auto_target or ∞, floor(100·W / stake), M)`. The coordinator auto-cashes at `k_eff`. This caps exposure **without** changing the crash point or reducing the RTP of the bet (it is exactly a fixed-target bet at k_eff).
+1. `crash_x10000 = 10000` → instant crash at launch; all bets lose. Disclosed in rules ("The rocket can explode on the launchpad").
+2. `crash_x10000 < M` → `ROUND_CRASHED{end_reason: CRASH}`; un-cashed bets lose.
+3. `crash_x10000 = M` → `ROUND_CRASHED{end_reason: MAX_MULTIPLIER}`; **every still-active bet is cashed at M** ("journey complete"). This keeps RTP = 1 − e for players who hold to the end.
+4. **Max win per bet** W: each admitted bet gets an *effective target* `k_eff = min(auto_target or ∞, floor(10000·W / stake), M)` (x10000 units). The coordinator auto-cashes at `k_eff`. This caps exposure **without** changing the crash point or reducing the RTP of the bet (it is exactly a fixed-target bet at k_eff).
 
 ## 5. Return to player
 
-For a bet with effective target k (101 ≤ k ≤ M), ignoring payout rounding:
+For a bet with effective target k in hundredths (101 ≤ k ≤ M/100), ignoring payout rounding:
 ```
-E[return] = (k/100) · P(crash_x100 ≥ k) = (k/100) · 100(1−e)/k = 1 − e
+E[return] = (k/100) · P(crash_x10000 ≥ 100·k) = (k/100) · 100(1−e)/k = 1 − e
 ```
 - **Strategy invariance.** For manual play, survival from any reached multiplier a to b is a/b (memoryless in log-space), so any stopping rule based on the observed flight also has expected return ≤ 1 − e, with equality in the limit of continuous pricing.
-- **Rounding drag (manual only).** Manual cash-outs are priced at `curve[t]` (floored to 0.01×). Near 1.0× the curve rises 0.01× every ≈ 166 ms; the floor costs up to 0.99 % of return at 1.01× and on average ≈ 0.5/m %. Auto cash-out has no drag. **Decision OQ-18:** keep 0.01× pricing (industry convention, disclose "manual RTP up to 97 %") or price manual cash-outs at 0.0001× resolution (`multiplier_x10000`) to remove the drag. Recommendation: price at x10000 internally, display x100 — removes a fairness footnote at negligible cost. Contracts in this package use `*_x100`; adopting x10000 changes field names before Phase C.
-- **Payout rounding.** `floor(stake_minor × k / 100)` loses < 1 minor unit per winning bet.
+- **Manual pricing precision (decided: 0.0001×).** Manual cash-outs are priced at `curve[t]` in x10000 units. Residual drag ≤ 0.0001/m from the floor plus ≤ λ·m per ms of stamp granularity (≈ 0.006 % relative) — i.e. manual RTP ≈ 96.99 % vs. ≈ 96.0–97.0 % with 0.01× pricing. Display shows 2 decimals; the confirmation shows the exact paid amount (and the 4-decimal multiplier in bet details). Rules text: "Manual cash-outs are paid at the multiplier to four decimal places at the moment the server receives your request."
+- **Payout rounding.** `floor(stake_minor × multiplier_x10000 / 10000)` loses < 1 minor unit per winning bet.
 
 ### 5.1 Timing expectations (e = 3 %, λ = 6×10⁻⁵/ms)
 - E[ln X] ≈ 1 − e ⇒ E[flight] ≈ 0.97/λ ≈ **16.2 s**; median ≈ 11.0 s.
@@ -113,11 +114,22 @@ Milestones are spaced in log-multiplier, so they arrive at roughly regular *time
 3. Publish `chain_id`, N, `terminal = s_N`, `formula_version`, `ruleset_hash`, and **a future drand round number R** (≥ 24 h ahead) — signed with the platform fairness key.
 4. When drand round R is published, `salt = drand.randomness(R)`; chain → `SALTED`. Activation requires an `approval_request`.
 
+**As built.** The ceremony is `LuxRt.Fairness.SeedChain.commit/2` (release task `seed_ceremony`, mix task
+`lux.seed_ceremony`); the network is drand *quicknet* (period 3 s, `randomness = SHA-256(signature)`).
+`COMMITTED → ACTIVE` happens only through a four-eyes `ACTIVATE_SEED_CHAIN` approval (doc 12 §5a); there is no
+separate `SALTED` state because salting and activation are one approved step. Statuses:
+`COMMITTED | ACTIVE | RETIRED | EXHAUSTED`, at most one `ACTIVE` per stream. The platform publishes each
+commitment as an Ed25519-signed statement (`LRCHAIN1`, chain id, stream, N, terminal, formula, drand network,
+round, commit time) at `/.well-known/luxrocket-chains.json`, with the salt and the drand BLS signature once
+active. Limitations: the platform and engine check the beacon's internal consistency, not the BLS signature
+(auditors verify it against the drand public key); step 1 runs on an engine node with the KEK, so the
+"isolated host" is an operational control, not a technical one, until the KEK moves to an HSM (OQ-06).
+
 ### 6.2 Per round
 - Round k (k = 1 … N) uses `seed_k = s_{N−k}`.
 - **Commitment** shown at `ROUND_OPEN`: `commitment_k = s_{N−k+1}` (the previous round's revealed seed, or `terminal` for k = 1).
 - **Reveal** at `ROUND_CRASHED`/`ROUND_VOIDED`: `seed_k`.
-- **Verification**: `SHA256(seed_k) == commitment_k` **and** `crash_x100 == LR-CRASH-1(seed_k, salt, e_bp, M)`. Auditors can additionally verify that all revealed seeds link back to the signed terminal hash.
+- **Verification**: `SHA256(seed_k) == commitment_k` **and** `crash_x10000 == LR-CRASH-1(seed_k, salt, e_bp, M)`. Auditors can additionally verify that all revealed seeds link back to the signed terminal hash.
 
 ### 6.3 What this proves and does not prove
 | Property | Proved? |

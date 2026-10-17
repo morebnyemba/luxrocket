@@ -1,0 +1,7 @@
+# Money and outcome paths require owner review (doc 15 §3.1, access level L2+).
+*                                   @morebnyemba
+/contracts/                         @morebnyemba
+/backend/luxrocket/core/            @morebnyemba
+/realtime/lib/lux_rt/math/          @morebnyemba
+/packages/game-core/src/outcome.ts  @morebnyemba
+/docs/architecture/                 @morebnyemba

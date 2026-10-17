@@ -32,6 +32,7 @@ Cards & charts (all from Prometheus/metrics API or reporting tables, refreshed �
 |-----------|-------|
 | Onboard operator (wizard) | Legal entity, contacts, jurisdictions, currencies, stream, integration model, commercial metadata (rev-share %, contract ref, start date) |
 | Status lifecycle | ONBOARDING → SANDBOX → LIVE ↔ SUSPENDED → TERMINATED; LIVE requires checklist (★) |
+| Markets (owner only) | Registry of all countries; set DISABLED / SANDBOX / REAL with evidence reference; visible to all platform roles, editable only by `PLAT_OWNER` (ADR-026). Disabling REAL revokes live sessions in that country. |
 | Real-money enablement ★ | Requires: signed contract flag, licence evidence reference, conformance tests passed, certification reference for the stream's ruleset, security review sign-off |
 | Allowed domains | Add/remove exact origins; verification by DNS TXT or file (recommended) |
 | Credentials | View metadata (kid, alg, created, last used, expiry); revoke; platform cannot view private keys or HMAC secrets after creation |
@@ -78,28 +79,68 @@ Staff users & roles; MFA status; sessions (revoke); audit log search with hash-c
 
 ## 4. Roles (platform realm)
 
-| Permission ↓ / Role → | SUPERADMIN | OPS | FINANCE | RISK | SUPPORT | GAME_RELEASE | AUDITOR |
-|-----------------------|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
-| View overview/health | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Manage operators (non-financial) | ✓ | ✓ | | | | | |
-| Enable real money ★ | ✓ (+approver) | | | ✓ approver | | | |
-| Manage credentials metadata/revoke | ✓ | ✓ | | | | | |
-| Game versions/rulesets/streams ★ | ✓ | | | approver | | ✓ | |
-| Seed-chain activation ★ | ✓ | | | approver | | ✓ | |
-| Maintenance / drain | ✓ | ✓ | | | | ✓ | |
-| View bets/transactions | ✓ | ✓ | ✓ | ✓ | ✓ (masked) | | ✓ |
-| Player-level search (audited) | ✓ | | ✓ | ✓ | ✓ | | ✓ |
-| Adjustments ★ | request/approve | | request | approve | | | |
-| Reconciliation resolve | ✓ | | ✓ | ✓ | | | |
-| Staff & roles | ✓ | | | | | | |
-| Audit log read | ✓ | | | ✓ | | | ✓ |
-No role can approve its own request. SUPERADMIN count ≤ 3, each with hardware-key MFA.
+| Permission ↓ / Role → | OWNER | SUPERADMIN | OPS | FINANCE | RISK | SUPPORT | GAME_RELEASE | AUDITOR |
+|-----------------------|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| **Enable/disable markets** | **✓ (only)** | | | | | | | |
+| View overview/health | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Manage operators (non-financial) | ✓ | ✓ | ✓ | | | | | |
+| Enable real money ★ | ✓ | ✓ (+approver) | | | ✓ approver | | | |
+| Manage credentials metadata/revoke | ✓ | ✓ | ✓ | | | | | |
+| Game versions/rulesets/streams ★ | ✓ | ✓ | | | approver | | ✓ | |
+| Seed-chain activation ★ | ✓ | ✓ | | | approver | | ✓ | |
+| Maintenance / drain | ✓ | ✓ | ✓ | | | | ✓ | |
+| View bets/transactions | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ (masked) | | ✓ |
+| Player-level search (audited) | ✓ | ✓ | | ✓ | ✓ | ✓ | | ✓ |
+| Adjustments ★ | ✓ | request/approve | | request | approve | | | |
+| Reconciliation resolve | ✓ | ✓ | | ✓ | ✓ | | | |
+| Staff & roles | ✓ | ✓ | | | | | | |
+| Audit log read | ✓ | ✓ | | | ✓ | | | ✓ |
+No role can approve its own request (exception: `PLAT_OWNER` market changes, ADR-026). Exactly one OWNER; SUPERADMIN count ≤ 3; all with hardware-key MFA.
 
 ## 5. Key workflows
 1. **Operator go-live**: onboarding → sandbox credentials → conformance tests pass → domains verified → commercial/licence evidence → real-money request ★ → approved → status LIVE, `real_money_enabled = true` → webhook `game.availability_changed`.
 2. **Ruleset release**: draft → math review attached → certification reference → approve ★ → schedule stream binding → applied at next round boundary → audit.
 3. **Credential compromise**: revoke key (immediate) → revoke operator sessions (optional) → incident record → operator notified.
 4. **Stuck credit**: alert → finance views timeline → contacts operator → operator confirms credit landed (evidence) → mark resolved (no money moved) or adjustment ★.
+
+## 5a. As built (v1)
+- API `backend/luxrocket/console` at `/api/admin/v1`; UI `apps/admin` (static export behind nginx proxying only
+  `/api/admin/`). Shared UI/API code with the operator portal lives in `packages/console-kit`.
+- Sign-in: password, then a **WebAuthn passkey with user verification** every time; first sign-in can only
+  register a key. Challenges are session-bound, single-use, 5 min; origin + RP id checked; sign-counter
+  regressions refused. Sessions 4 h / 15 min idle (`__Host-lr_admin`). Step-up = a passkey assertion within
+  5 min for every privileged write.
+- Permissions are the §4 matrix verbatim (`console/auth.py`); `tests/test_console.py` generates the role ×
+  endpoint allow/deny matrix from it (AC-ADM-1), proves no route can write round data (AC-ADM-2), and that
+  self-approval is refused by the view **and** a database CHECK constraint (AC-ADM-3).
+- Built: overview, markets (owner only; closing REAL revokes live real-money sessions), operator onboarding
+  (with first portal owner), immediate suspend, credential revocation, four-eyes **real-money enablement**
+  (conformance passed on the current wallet URL + contract/licence/certification/security evidence + a REAL
+  market) and **reactivation**, finance queue with retry, bet timeline (wallet attempts + ledger),
+  audited player search (masked for support), discrepancy resolution, read-only rounds with journal,
+  staff (one owner, ≤ 3 superadmins appointed by the owner, passkey reset), audit search + chain verification.
+- **Rulesets & streams (as built):** a ruleset varies only the house edge (100–1000 bp) and max multiplier
+  (100×–10000×); formula and curve are fixed per deployment (the bit-identical curve table depends on them).
+  Drafts become APPROVED only through four-eyes with a certification reference; approved rulesets are
+  immutable (DB trigger). Binding a stream is four-eyes; it bumps `stream_config.version` and emits
+  `stream.config` through the outbox. Phoenix keeps it pending and adopts it when creating the **next** round,
+  journaling `ruleset_code`/`ruleset_version` in `ROUND_CREATED`; on boot it syncs from
+  `GET /internal/v1/streams/{stream}/config`, else the last journaled rules, else its static default. Django
+  marks a round verified only if its journaled parameters equal an approved ruleset.
+- **Seed chains (as built, doc 07 §6.1):** a key holder runs the ceremony
+  (`bin/lux_rt eval 'LuxRt.Release.seed_ceremony("global")'` or `mix lux.seed_ceremony`): the chain is
+  stored `COMMITTED` with its terminal hash and a drand quicknet round ≥ 24 h ahead. Once that round is
+  published, GAME_RELEASE requests `ACTIVATE_SEED_CHAIN`; the platform fetches the beacon itself (requester
+  input is ignored), checks `randomness = SHA-256(signature)`, the committed round, the trusted drand network
+  and the commit-to-round delay; RISK (or owner/superadmin) approves and the outbox emits
+  `seed_chain.activate`. Phoenix re-checks, salts and activates the chain idempotently (one ACTIVE per stream,
+  DB-enforced), retires the previous one and the coordinator switches at the next round boundary. With no
+  playable chain (none activated, or exhausted) the stream pauses rather than invent one; dev/sandbox stacks
+  set `SEED_AUTO_CHAIN=true` for a local-random chain. Commitments are published, Ed25519-signed with the
+  platform key, at `/.well-known/luxrocket-chains.json`. Real-money enablement requires the operator's
+  stream to be on an ACTIVE drand-salted chain.
+- Not yet: game versions & releases, maintenance & drain requests to Phoenix,
+  adjustments (`ADJUSTMENT_CREDIT`), analytics time series, incidents register, exports, IP allowlist.
 
 ## 6. Acceptance criteria
 - AC-ADM-1: Every endpoint has an authorization test per role (allowed/denied matrix generated from §4).

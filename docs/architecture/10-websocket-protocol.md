@@ -52,11 +52,11 @@ Phoenix reply (`phx_reply`) to a command means only **"received and stamped"**: 
 | `ROUND_OPEN` | Betting opens | `opens_at, close_at, launch_at, commitment, ruleset_id, number` |
 | `BETTING_CLOSED` | Cut-off | `close_at, launch_at` |
 | `ROCKET_LAUNCHED` | Flight starts | `launch_at, curve: {kind: "exp", lambda_per_ms, table_hash}` |
-| `MULTIPLIER_UPDATE` | 4 Hz during flight | `tick_seq, elapsed_ms, multiplier_x100` |
-| `ROUND_CRASHED` | Round ends | `crash_x100, crash_at, end_reason: "CRASH"\|"MAX_MULTIPLIER", seed, salt, chain_id, chain_index` |
+| `MULTIPLIER_UPDATE` | 4 Hz during flight | `tick_seq, elapsed_ms, multiplier_x10000` |
+| `ROUND_CRASHED` | Round ends | `crash_x10000, crash_at, end_reason: "CRASH"\|"MAX_MULTIPLIER", seed, salt, chain_id, chain_index` |
 | `ROUND_VOIDED` | Malfunction/maintenance | `reason, seed` |
 | `ROUND_STATS` | 1 Hz | `players_online, bets_count, cashed_count` (aggregates only) |
-| `CASHOUT_FEED` | ≤ 2 Hz batched | recent cash-outs on this stream: `[{alias_masked, cashout_x100, panel}]` — **no amounts by default** (OQ-24) |
+| `CASHOUT_FEED` | ≤ 2 Hz batched | recent cash-outs on this stream: `[{alias_masked, cashout_x10000, panel}]` — **no amounts by default** (OQ-24) |
 | `STREAM_NOTICE` | Maintenance etc. | `kind, message_key, starts_at` |
 | `RESYNC_REQUIRED` | Server detects client gap or coordinator change | `reason` |
 
@@ -68,11 +68,11 @@ Phoenix reply (`phx_reply`) to a command means only **"received and stamped"**: 
 |------|--------|
 | `SESSION_READY` | `session: {sid_suffix, currency, exponent, locale, panels, limits: {min_stake, max_stake, max_win}, rg: {reminder_minutes}}`, `snapshot: ROUND_SNAPSHOT`, `server_ts` |
 | `ROUND_SNAPSHOT` | §5 |
-| `BET_ACCEPTED` | `command_id, bet_id, panel, stake, auto_cashout_x100` |
+| `BET_ACCEPTED` | `command_id, bet_id, panel, stake, auto_cashout_x10000` |
 | `BET_REJECTED` | `command_id, panel, code, refund: "NONE"\|"PENDING"` |
-| `CASHOUT_ACCEPTED` | `command_id?` (absent for auto), `bet_id, panel, cashout_x100, payout, trigger: "MANUAL"\|"AUTO"\|"MAX_WIN"\|"MAX_MULTIPLIER"` |
+| `CASHOUT_ACCEPTED` | `command_id?` (absent for auto), `bet_id, panel, cashout_x10000, payout, trigger: "MANUAL"\|"AUTO"\|"MAX_WIN"\|"MAX_MULTIPLIER"` |
 | `CASHOUT_REJECTED` | `command_id, bet_id, code` |
-| `BET_LOST` | `bet_id, panel, crash_x100` |
+| `BET_LOST` | `bet_id, panel, crash_x10000` |
 | `SETTLEMENT_PENDING` | `bet_id, kind: "CREDIT"\|"REFUND", amount` (sent if not confirmed within 3 s) |
 | `SETTLEMENT_CONFIRMED` | `bet_id, kind, amount, balance?` |
 | `BALANCE_UPDATED` | `balance` (only if operator returns balances) |
@@ -84,7 +84,7 @@ Phoenix reply (`phx_reply`) to a command means only **"received and stamped"**: 
 
 | Type | `data` | Valid when |
 |------|--------|-----------|
-| `PLACE_BET` | `panel, stake (string minor units), auto_cashout_x100?` | `BETTING_OPEN` |
+| `PLACE_BET` | `panel, stake (string minor units), auto_cashout_x10000?` | `BETTING_OPEN` |
 | `CASH_OUT` | `bet_id` | `FLYING` |
 | `SYNC` | `last_seq` | Any; server replies with `ROUND_SNAPSHOT` |
 | `TIME_PING` | `client_ts` | Any; reply `{client_ts, server_ts}` for clock offset |
@@ -112,7 +112,7 @@ Phoenix reply (`phx_reply`) to a command means only **"received and stamped"**: 
         "opens_at": { "type": "integer" }, "close_at": { "type": "integer" }, "launch_at": { "type": "integer" },
         "commitment": { "type": "string" },
         "curve": { "type": "object" },
-        "crash_x100": { "type": "integer", "description": "Present ONLY when state is CRASHED" },
+        "crash_x10000": { "type": "integer", "description": "Present ONLY when state is CRASHED" },
         "seed": { "type": "string", "description": "Present ONLY when state is CRASHED or VOIDED" }
       }
     },
@@ -124,8 +124,8 @@ Phoenix reply (`phx_reply`) to a command means only **"received and stamped"**: 
         "properties": {
           "panel": { "type": "integer" }, "bet_id": { "type": "string" },
           "status": { "enum": ["PENDING", "ACCEPTED", "ACTIVE", "CASHED_OUT", "LOST", "REJECTED", "REFUND_PENDING", "REFUNDED"] },
-          "stake": { "type": "string" }, "auto_cashout_x100": { "type": "integer" },
-          "cashout_x100": { "type": "integer" }, "payout": { "type": "string" },
+          "stake": { "type": "string" }, "auto_cashout_x10000": { "type": "integer" },
+          "cashout_x10000": { "type": "integer" }, "payout": { "type": "string" },
           "settlement": { "enum": ["NONE", "PENDING", "CONFIRMED"] }
         }
       }
@@ -143,7 +143,7 @@ Phoenix reply (`phx_reply`) to a command means only **"received and stamped"**: 
     "data": {"type":"object","required":["panel","stake"],"additionalProperties":false,
       "properties": {"panel":{"type":"integer","minimum":0,"maximum":7},
                      "stake":{"type":"string","pattern":"^[1-9][0-9]{0,17}$"},
-                     "auto_cashout_x100":{"type":"integer","minimum":101}}}}}
+                     "auto_cashout_x10000":{"type":"integer","minimum":10100,"multipleOf":100}}}}}
 ```
 ```json
 { "$id": "…/ws/v1/cash-out.json", "type": "object", "required": ["type","v","command_id","round_id","data"],
@@ -175,7 +175,7 @@ sequenceDiagram
   RC-->>C: CASHOUT_ACCEPTED p0 (AUTO @ 2.00×)
   C->>G: CASH_OUT p1
   RC-->>C: CASHOUT_ACCEPTED p1 (MANUAL @ 3.41×)
-  RC-->>G: ROUND_CRASHED (n+k) {crash_x100, seed}
+  RC-->>G: ROUND_CRASHED (n+k) {crash_x10000, seed}
   RC-->>C: SETTLEMENT_CONFIRMED p0, p1 (via Django → platform.events)
   Note over C,G: missing seq detected → SYNC → ROUND_SNAPSHOT
 ```
@@ -186,7 +186,7 @@ sequenceDiagram
 - **Gap detection**: if a public event arrives with `seq > last_seq + 1`, or a private event with `pseq` gap, client sends `SYNC` and renders from the snapshot. Duplicate/older seq are ignored (idempotent apply).
 - **Visibility**: on `visibilitychange` → visible or after ≥ 2 s of missed heartbeats, client sends `SYNC` before rendering any flight (no "catch-up animation" of a flight it didn't see; jump to current state).
 - **Coordinator change**: server emits `RESYNC_REQUIRED`; clients `SYNC`.
-- **Pre-crash secrecy**: no pre-crash message contains `crash_x100`, `crash_at`, `seed` or anything derived from them; enforced by schema tests on every pre-crash event type and an Elixir compile-time struct split (`PublicRound` has no crash fields).
+- **Pre-crash secrecy**: no pre-crash message contains `crash_x10000`, `crash_at`, `seed` or anything derived from them; enforced by schema tests on every pre-crash event type and an Elixir compile-time struct split (`PublicRound` has no crash fields).
 - **Client timestamps** are never used for deadlines; `TIME_PING.client_ts` is echoed only.
 
 ## 8. Error codes (closed enum, `lr.v1`)

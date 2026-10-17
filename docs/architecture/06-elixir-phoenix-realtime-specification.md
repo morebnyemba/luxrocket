@@ -77,16 +77,16 @@ stateDiagram-v2
 
 | State | Entry actions (journal first, then broadcast) | Accepts | Exit trigger |
 |-------|-----------------------------------------------|---------|--------------|
-| `PENDING` | Insert `rt.round`; compute `crash_x100` **in memory only**; journal `ROUND_CREATED{commitment, ruleset_hash}` | — | `opens_at` (= previous crash + cooldown) |
+| `PENDING` | Insert `rt.round`; compute `crash_x10000` **in memory only**; journal `ROUND_CREATED{commitment, ruleset_hash}` | — | `opens_at` (= previous crash + cooldown) |
 | `BETTING_OPEN` | journal `ROUND_OPENED`; broadcast `ROUND_OPEN` | `PLACE_BET` (stamp < `close_at`) | `close_at = opens_at + betting_window_ms` (default 7 000) |
 | `BETTING_CLOSED` | journal `BETTING_CLOSED`; broadcast | Django results for in-flight bets | `launch_at = close_at + close_grace_ms` (default 1 000) |
-| `FLYING` | barrier-flush admissions; journal `BET_EXCLUDED` for every still-pending bet; journal `ROUND_LAUNCHED{launch_at}`; broadcast `ROCKET_LAUNCHED` | `CASH_OUT` (stamp < `crash_at`); auto cash-outs at target crossing | `crash_at = launch_at + t(crash_x100)`, finalised after `crash_grace_ms` (default 50) |
-| `CRASHED` | journal `ROUND_CRASHED{crash_x100, crash_at, seed, salt}`; update `rt.round`; broadcast `ROUND_CRASHED` | — | create next round immediately; `opens_at = crash_at + cooldown_ms` (default 2 000) |
+| `FLYING` | barrier-flush admissions; journal `BET_EXCLUDED` for every still-pending bet; journal `ROUND_LAUNCHED{launch_at}`; broadcast `ROCKET_LAUNCHED` | `CASH_OUT` (stamp < `crash_at`); auto cash-outs at target crossing | `crash_at = launch_at + t(crash_x10000)`, finalised after `crash_grace_ms` (default 50) |
+| `CRASHED` | journal `ROUND_CRASHED{crash_x10000, crash_at, seed, salt}`; update `rt.round`; broadcast `ROUND_CRASHED` | — | create next round immediately; `opens_at = crash_at + cooldown_ms` (default 2 000) |
 | `VOIDED` | journal `ROUND_VOIDED{reason, seed}`; broadcast `ROUND_VOIDED` | — | create next round |
 
 Timing uses `System.monotonic_time/1` internally; published timestamps are `System.os_time(:millisecond)` captured at the same instant (offset fixed per round to avoid NTP slew mid-round).
 
-Instant crash (`crash_x100 = 100`): `crash_at = launch_at`; the round goes `FLYING → CRASHED` with no cash-out opportunity. This is a disclosed rule (doc 07 §4).
+Instant crash (`crash_x10000 = 10000`): `crash_at = launch_at`; the round goes `FLYING → CRASHED` with no cash-out opportunity. This is a disclosed rule (doc 07 §4).
 
 ## 5. Command handling inside the coordinator
 
@@ -110,18 +110,18 @@ The **gateway channel process** stamps each command with `received_at` (os time,
 Within the single coordinator process (therefore serialised with the crash):
 1. Bet exists, admitted, owned by session, not already cashed → else `CASHOUT_REJECTED`.
 2. State `FLYING` and `received_at < crash_at` → else `CASHOUT_REJECTED{ROUND_ENDED}`.
-3. `cashout_x100 = floor100(m(received_at − launch_at))` (always ≤ `crash_x100 − 1`, doc 07 §3).
-4. `payout_minor = min(floor(stake × cashout_x100 / 100), max_win_minor)`.
-5. Mark cashed in memory (prevents double cash-out), enqueue `CASHOUT_ACCEPTED` journal entry; on flush → push `CASHOUT_ACCEPTED{bet_id, cashout_x100, payout_minor}`. If flush fails, the coordinator halts; the round is voided and the bet refunded — the player never received an acceptance.
+3. `cashout_x10000 = curve[received_at − launch_at]` — the ruleset's 0.0001×-resolution table (always < `crash_x10000`, doc 07 §3).
+4. `payout_minor = min(floor(stake × cashout_x10000 / 10000), max_win_minor)`.
+5. Mark cashed in memory (prevents double cash-out), enqueue `CASHOUT_ACCEPTED` journal entry; on flush → push `CASHOUT_ACCEPTED{bet_id, cashout_x10000, payout_minor}`. If flush fails, the coordinator halts; the round is voided and the bet refunded — the player never received an acceptance.
 
 ### 5.4 Auto cash-out
-- Every admitted bet gets an effective target `k_eff = min(auto_cashout_x100 or ∞, floor(100·max_win/stake), M)` (doc 07 §4); bets with a finite `k_eff` are kept in a `:gb_trees` keyed by it. Pricing uses the ruleset's tabulated curve (doc 07 §3).
-- If `crash_x100 = M` the round ends with `end_reason: MAX_MULTIPLIER` and all still-active bets are cashed at M before `ROUND_CRASHED` is journaled.
+- Every admitted bet gets an effective target `k_eff = min(auto_cashout_x10000 or ∞, floor(10000·max_win/stake), M)` (doc 07 §4); bets with a finite `k_eff` are kept in a `:gb_trees` keyed by it. Pricing uses the ruleset's tabulated curve (doc 07 §3).
+- If `crash_x10000 = M` the round ends with `end_reason: MAX_MULTIPLIER` and all still-active bets are cashed at M before `ROUND_CRASHED` is journaled.
 - The coordinator schedules a timer at the **curve crossing time of the next target**, `t = ln(target/100)/λ`, never earlier.
-- On each timer: all bets with `target ≤ floor100(m(now))` **and** `target ≤ crash_x100` are cashed at their *target* multiplier, journaled in one batch, then pushed.
-- Bets with `target > crash_x100` are never touched before the crash.
+- On each timer: all bets with `target ≤ floor10000(m(now))` **and** `target ≤ crash_x10000` are cashed at their *target* multiplier, journaled in one batch, then pushed.
+- Bets with `target > crash_x10000` are never touched before the crash.
 
-**Information-leak rule.** No action whose timing or content depends on the crash point may become externally observable before the curve reaches the corresponding multiplier. Concretely: auto cash-outs are journaled and relayed only at crossing time (otherwise an early wallet credit for a 10× target would reveal "crash ≥ 10×" to anyone watching the operator wallet); internal logs never contain `crash_x100` before `ROUND_CRASHED`.
+**Information-leak rule.** No action whose timing or content depends on the crash point may become externally observable before the curve reaches the corresponding multiplier. Concretely: auto cash-outs are journaled and relayed only at crossing time (otherwise an early wallet credit for a 10× target would reveal "crash ≥ 10×" to anyone watching the operator wallet); internal logs never contain `crash_x10000` before `ROUND_CRASHED`.
 
 ### 5.5 Journal writer
 - Batches up to 200 entries or 10 ms, whichever first; one fenced multi-row insert; replies `{:flushed, event_ids}`.
@@ -142,7 +142,7 @@ A per-node process selects unrelayed entries (`relayed_at IS NULL`, ordered by `
 - Coordinator broadcasts once per event per node (PubSub), channel processes push pre-encoded frames (`Phoenix.Socket.Broadcast` fastlane).
 - Every public broadcast also refreshes `SnapshotCache` on every node; joins and resyncs read node-local ETS — **no coordinator call for public state**.
 - Player-specific state on join: one `GenServer.call` to the coordinator (`player_view(session_id)`, 200 ms timeout), falling back to Django `GET /game/v1/me/bets?round=` on timeout. Reconnect-storm behaviour is a named load-test scenario.
-- Ticks: 4 Hz `MULTIPLIER_UPDATE` while FLYING, carrying `{elapsed_ms, multiplier_x100}` for client correction.
+- Ticks: 4 Hz `MULTIPLIER_UPDATE` while FLYING, carrying `{elapsed_ms, multiplier_x10000}` for client correction.
 - "Players online" / "bets this round" are **aggregates** broadcast at 1 Hz, not Phoenix Presence (Presence diff traffic scales O(joins × nodes)).
 
 ## 7. Failure handling and recovery

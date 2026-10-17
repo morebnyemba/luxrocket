@@ -20,8 +20,8 @@ Migrations: Django migrations own `platform` and `audit`; Ecto migrations own `r
 |---------|----------------|
 | Amount | `BIGINT amount_minor` + `CHAR(3) currency`. JSON: string (`"1250"`). |
 | Currency precision | `platform.currency.exponent` (e.g. USD 2, ZAR 2, ZMW 2, BWP 2, MWK 2, MZN 2, ZWG 2 — verify each at onboarding, OQ-16). |
-| Multiplier | `INT multiplier_x100` (101 = 1.01×). Max 100 000 000 (1 000 000×) fits easily. |
-| Rounding | Payout = `floor(stake_minor × multiplier_x100 / 100)`, then capped by `max_win_minor`. Always toward the house by < 1 minor unit; disclosed in rules. |
+| Multiplier | `INT *_x10000` (10100 = 1.01×; 23456 = 2.3456×). One unit for every multiplier column. Crash points and auto targets: multiples of 100 (CHECK). Max 10 000× = 100 000 000 fits INT. |
+| Rounding | Payout = `floor(stake_minor × multiplier_x10000 / 10000)`, then capped by `max_win_minor`. Always toward the house by < 1 minor unit; disclosed in rules. |
 | IDs | UUIDv7 internally. Public ids are prefixed base32 of the UUID (`bet_01J…`). |
 | Time | `timestamptz`, microsecond; coordinator times stored as received. |
 
@@ -94,7 +94,8 @@ Columns are abbreviated; `id` is UUIDv7 PK unless stated; all tables have `creat
 | `operator_config_version` | Versioned operator-editable & platform-set settings | `operator_id`, `version` (unique per operator), `settings` jsonb (schema-validated), `effective_from`, `created_by`; only newest effective row applies | Append-only | Internal |
 | `operator_currency_limit` | Per-currency limits | unique (`operator_id`,`currency`); `min_stake_minor`, `max_stake_minor`, `max_win_minor`, `round_exposure_limit_minor`; CHECK min ≤ max, all > 0 | Versioned via audit | Internal |
 | `operator_wallet_endpoint` | Wallet API settings | `operator_id` unique, `base_url`, `auth_scheme`, `timeout_ms` (≤ 900 debit), `max_concurrency`, `send_settle_on_loss` bool, `supports_status_query` bool | — | Confidential |
-| `operator_jurisdiction` | Permitted player countries | unique (`operator_id`,`country_code`) | — | Internal |
+| `market` | Platform-level country registry (ADR-026) | `country_code` PK (ISO-3166-1 alpha-2), `status` ∈ {DISABLED, SANDBOX, REAL}, `requires_second_approver` bool, `evidence_ref`, `changed_by` (must hold PLAT_OWNER — enforced in service and by DB trigger checking role), `changed_at`; history in audit | Never deleted | Internal |
+| `operator_jurisdiction` | Permitted player countries (subset of enabled markets) | unique (`operator_id`,`country_code`) | — | Internal |
 | `currency` | Currency registry | `code` PK, `exponent`, `enabled` | — | Public |
 
 ### 4.3 Players and sessions
@@ -112,9 +113,9 @@ Columns are abbreviated; `id` is UUIDv7 PK unless stated; all tables have `creat
 |--------|---------|---------------------------|-----------|--------|
 | `game` | Product (e.g. `lux-rocket`) | `slug` unique | — | Public |
 | `game_version` | Deployable client+server version | unique (`game_id`,`semver`); `status` ∈ {DRAFT, CERTIFYING, APPROVED, ACTIVE, RETIRED}; `client_asset_manifest` (hash), `server_build` | Immutable once APPROVED | Internal |
-| `ruleset` | Versioned math & rules config | unique (`game_version_id`,`version`); `params` jsonb: `house_edge_bp`, `curve_lambda_per_ms`, `max_multiplier_x100`, `betting_window_ms`, `close_grace_ms`, `cooldown_ms`, `panels`; `params_hash`; `status`; `certificate_ref` | Immutable once APPROVED; release requires approval_request | Internal |
+| `ruleset` | Versioned math & rules config | unique (`game_version_id`,`version`); `params` jsonb: `house_edge_bp`, `curve_lambda_per_ms`, `max_multiplier_x10000`, `betting_window_ms`, `close_grace_ms`, `cooldown_ms`, `panels`; `params_hash`; `status`; `certificate_ref` | Immutable once APPROVED; release requires approval_request | Internal |
 | `round_stream` | Continuous sequence of shared rounds | `slug` unique, `game_version_id`, `ruleset_id`, `mode`, `status` ∈ {RUNNING, DRAINING, PAUSED, MAINTENANCE}; ruleset changes apply at next round boundary | — | Internal |
-| `game_round` | Django **projection** of an `rt.round` | `id` = rt round id, `stream_id`, `ruleset_id`, `number` (per stream, unique with stream), `state`, `launch_at`, `crash_x100` (NULL until crash), `seed_revealed`, `settlement_status` ∈ {OPEN, SETTLING, SETTLED, NEEDS_ATTENTION}, `last_journal_seq` | Written only by journal-consumer | Internal (public after crash) |
+| `game_round` | Django **projection** of an `rt.round` | `id` = rt round id, `stream_id`, `ruleset_id`, `number` (per stream, unique with stream), `state`, `launch_at`, `crash_x10000` (NULL until crash), `seed_revealed`, `settlement_status` ∈ {OPEN, SETTLING, SETTLED, NEEDS_ATTENTION}, `last_journal_seq` | Written only by journal-consumer | Internal (public after crash) |
 | `round_operator_exposure` | Atomic exposure counter per round × operator × currency | PK (`round_id`,`operator_id`,`currency`), `exposure_minor`, `limit_minor`; updated with `UPDATE … SET exposure=exposure+$x WHERE exposure+$x <= limit_minor` | Pruned after 90 days | Internal |
 
 `RoundVerificationRecord` from the brief is folded into `rt.round` (canonical) and the `game_round` projection; verification is served from those.
@@ -123,11 +124,11 @@ Columns are abbreviated; `id` is UUIDv7 PK unless stated; all tables have `creat
 
 | Entity | Purpose | Key columns & constraints | Lifecycle | Class. |
 |--------|---------|---------------------------|-----------|--------|
-| `bet` | One stake on one panel in one round | `public_id` (`bet_…`), `operator_id`, `session_id`, `player_ref_id`, `round_id`, `panel` smallint (0..N-1), `client_command_id` uuid, `stake_minor`, `currency`, `auto_cashout_x100` NULL, `max_win_minor` (snapshot), `status` (doc 08 §3), `cashout_x100`, `payout_minor`, `admitted_at`, `cashed_out_at`. **Unique (`round_id`,`operator_id`,`player_ref_id`,`panel`)** — one bet per panel per player per round across tabs/sessions; **unique (`round_id`,`session_id`,`client_command_id`)**. Index (`operator_id`,`created_at`), (`round_id`,`status`). Range-partitioned monthly by `round_id` (UUIDv7 is time-ordered, so the partition key is part of both unique constraints, as Postgres requires). | Retained ≥ jurisdiction minimum (OQ-08, default 7 y) | Confidential |
+| `bet` | One stake on one panel in one round | `public_id` (`bet_…`), `operator_id`, `session_id`, `player_ref_id`, `round_id`, `panel` smallint (0..N-1), `client_command_id` uuid, `stake_minor`, `currency`, `auto_cashout_x10000` NULL, `max_win_minor` (snapshot), `status` (doc 08 §3), `cashout_x10000`, `payout_minor`, `admitted_at`, `cashed_out_at`. **Unique (`round_id`,`operator_id`,`player_ref_id`,`panel`)** — one bet per panel per player per round across tabs/sessions; **unique (`round_id`,`session_id`,`client_command_id`)**. Index (`operator_id`,`created_at`), (`round_id`,`status`). Range-partitioned monthly by `round_id` (UUIDv7 is time-ordered, so the partition key is part of both unique constraints, as Postgres requires). | Retained ≥ jurisdiction minimum (OQ-08, default 7 y) | Confidential |
 | `wallet_transaction` | One logical wallet command | `public_id` = **`transaction_id` sent to operator** (`tx_…`), `operator_id`, `bet_id`, `type` ∈ {DEBIT, CREDIT, ROLLBACK, SETTLE, ADJUSTMENT_CREDIT}, `amount_minor`, `currency`, `ref_transaction_id` (for ROLLBACK → DEBIT), `status` ∈ {PENDING, SUCCEEDED, FAILED, UNKNOWN, ABANDONED}, `operator_reference`, `attempt_count`, `next_attempt_at`. **Unique (`bet_id`,`type`)** for DEBIT/CREDIT/ROLLBACK/SETTLE (partial) — makes a second credit for the same bet impossible. Range-partitioned by `bet_id` (UUIDv7) so the unique key contains the partition key. | Retained 7 y | Confidential |
 | `wallet_tx_attempt` | Immutable record of each HTTP attempt | `wallet_transaction_id`, `attempt_no`, `request_digest`, `http_status`, `operator_code`, `latency_ms`, `outcome` ∈ {OK, REJECTED, TIMEOUT, NETWORK, 5XX, INVALID}, `response_excerpt` (redacted) | Append-only; 2 y | Confidential |
 | `ledger_entry` | Double-entry postings | `journal_id` (groups balanced entries), `operator_id`, `account` (e.g. `player_stakes`, `player_wins`, `refunds`, `operator_wallet`), `amount_minor` (signed), `currency`, `bet_id`, `wallet_transaction_id`; DB trigger: SUM(amount) per `journal_id` = 0 (deferred constraint trigger); UPDATE/DELETE revoked from all roles | Append-only, 7 y | Confidential |
-| `settlement` | Terminal financial outcome of a bet | `bet_id` unique, `outcome` ∈ {WIN, LOSS, REFUND}, `payout_minor`, `multiplier_x100`, `status` ∈ {PENDING, CONFIRMED, FAILED_NEEDS_ATTENTION}, `confirmed_at` | 7 y | Confidential |
+| `settlement` | Terminal financial outcome of a bet | `bet_id` unique, `outcome` ∈ {WIN, LOSS, REFUND}, `payout_minor`, `multiplier_x10000`, `status` ∈ {PENDING, CONFIRMED, FAILED_NEEDS_ATTENTION}, `confirmed_at` | 7 y | Confidential |
 
 The brief's `Refund` entity is represented by `wallet_transaction(type=ROLLBACK)` + `settlement(outcome=REFUND)`. `BetPanel/BetSlot` is the `panel` column; panels have no independent lifecycle beyond the bet.
 
@@ -154,7 +155,7 @@ The brief's `Refund` entity is represented by `wallet_transaction(type=ROLLBACK)
 | `rt.stream_lease` | Coordinator ownership | `stream_id` PK, `holder` (node+boot id), `fencing_token` bigint, `expires_at` |
 | `rt.seed_chain` | Committed chain per stream | `chain_id` PK, `stream_id`, `length`, `terminal_hash` (public), `salt` (public, NULL until fixed), `salt_source` (e.g. `drand:quicknet:R`), `commitment_signature`, `root_seed_ct` + `dek_id` (encrypted), `next_index`, `status` ∈ {GENERATED, COMMITTED, SALTED, ACTIVE, EXHAUSTED, REVOKED} |
 | `rt.seed_checkpoint` | Encrypted seeds every 10 000 indexes for O(10⁴) derivation | (`chain_id`,`index`) PK, `seed_ct` |
-| `rt.round` | Canonical round record | `round_id` PK, `stream_id`, `number` unique per stream, `chain_id`, `chain_index` unique per chain, `ruleset_id`, `ruleset_hash`, `state`, `opens_at`, `close_at`, `launch_at`, `crash_at`, `crash_x100` (**NULL until crash**), `seed_hex` (**NULL until crash/void**), `commitment` (= previous round's seed or terminal hash), `fencing_token` |
+| `rt.round` | Canonical round record | `round_id` PK, `stream_id`, `number` unique per stream, `chain_id`, `chain_index` unique per chain, `ruleset_id`, `ruleset_hash`, `state`, `opens_at`, `close_at`, `launch_at`, `crash_at`, `crash_x10000` (**NULL until crash**), `seed_hex` (**NULL until crash/void**), `commitment` (= previous round's seed or terminal hash), `fencing_token` |
 | `rt.round_journal` | Append-only facts | `journal_id` bigserial, `stream_id`, `round_id`, `stream_seq` (gapless per stream, unique (`stream_id`,`stream_seq`)), `event_id` uuid unique, `type`, `payload` jsonb, `fencing_token`, `recorded_at`, `relayed_at` NULL; partitioned monthly |
 
 Crash point and seed are **never written before the crash**. Pre-crash the database contains only the commitment. With void-on-malfunction (ADR-005) a recovering coordinator never needs the crash point of an interrupted round; it re-derives the seed from the chain to reveal it after voiding.

@@ -1,0 +1,157 @@
+# Local stack. `make up` starts Postgres; `make stack` builds and runs everything in sandbox
+# mode (virtual credits). Every credential comes from ../../.demo/stack.env, generated with
+# random values by `make stack` and git-ignored — none are written in this file.
+#
+# Database roles (ADR-019, infra/postgres/roles.sql): POSTGRES_USER is the superuser and is used
+# only by `db-roles`; Django connects as PLATFORM_DB_USER, Phoenix as REALTIME_DB_USER, each with
+# its own password from stack.env.
+name: luxrocket
+
+x-backend: &backend
+  build: { context: ../.., dockerfile: backend/Dockerfile }
+  env_file: ../../.demo/stack.env
+  environment:
+    DJANGO_DEBUG: "1"                     # sandbox/dev stack only; production sets 0
+    DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,api"
+    POSTGRES_HOST: postgres
+    PLATFORM_DB_USER: lr_platform
+    GAME_ORIGIN: http://localhost:3000
+    PLAY_BASE_URL: http://localhost:3000
+    REALTIME_INTERNAL_URL: http://realtime:4000
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    env_file: ../../.demo/stack.env
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\""]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports: ["127.0.0.1:6379:6379"]
+    profiles: ["infra"]
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    env_file: ../../.demo/stack.env
+    ports: ["127.0.0.1:5672:5672", "127.0.0.1:15672:15672"]
+    profiles: ["infra"]
+
+  # One-shot, as the superuser: per-service roles and schemas (idempotent; also adopts objects
+  # from stacks created before the split).
+  db-roles:
+    image: postgres:16-alpine
+    env_file: ../../.demo/stack.env
+    environment:
+      PGHOST: postgres
+    command: ["sh", "/pg/apply-roles.sh"]
+    volumes: ["../postgres:/pg:ro"]
+    depends_on: { postgres: { condition: service_healthy } }
+    profiles: ["app"]
+
+  # One-shot: Django migrations and the demo operator (key written to ./.demo).
+  migrate:
+    <<: *backend
+    # DEMO_WALLET_URL empty: built-in simulated wallet. `make stack-seamless` routes the demo
+    # operator to the reference Seamless Wallet v1 server below over signed HTTP instead.
+    command: ["sh", "-c", "python manage.py migrate --noinput && python manage.py seed_demo --key-out /demo/operator.key --origin http://localhost:8000 --wallet-url \"$$DEMO_WALLET_URL\" --webhook-url \"$$DEMO_WEBHOOK_URL\" && { [ -z \"$$PORTAL_DEMO_PASSWORD\" ] || python manage.py create_portal_user --operator 'Demo Sandbox Operator' --email demo-owner@luxrocket.local --password \"$$PORTAL_DEMO_PASSWORD\"; } && { [ -z \"$$ADMIN_DEMO_PASSWORD\" ] || python manage.py create_platform_owner --email owner@luxrocket.local --password \"$$ADMIN_DEMO_PASSWORD\" || true; }"]
+    environment:
+      DJANGO_DEBUG: "1"
+      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,api"
+      POSTGRES_HOST: postgres
+      PLATFORM_DB_USER: lr_platform
+      DEMO_WALLET_URL: ${DEMO_WALLET_URL:-}
+      DEMO_WEBHOOK_URL: ${DEMO_WEBHOOK_URL:-}
+    volumes: ["../../.demo:/demo"]
+    # Local tooling only: writes the demo operator key into the host-mounted ./.demo directory.
+    user: root
+    depends_on: { db-roles: { condition: service_completed_successfully } }
+    profiles: ["app"]
+
+  api:
+    <<: *backend
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on: { migrate: { condition: service_completed_successfully } }
+    profiles: ["app"]
+
+  workers:
+    <<: *backend
+    command: ["python", "manage.py", "run_workers"]
+    depends_on: { migrate: { condition: service_completed_successfully } }
+    profiles: ["app"]
+
+  # Reference operator wallet (LUX Seamless Wallet v1, plus a webhook consumer at /wallet/webhooks)
+  # with optional fault injection.
+  wallet-sim:
+    build: { context: ../.., dockerfile: backend/Dockerfile }
+    command:
+      - python
+      - -m
+      - luxrocket.wallet.simulator
+      - --host=0.0.0.0
+      - --port=8090
+      - --prefix=/wallet
+      - --keys-url=http://api:8000/.well-known/luxrocket-keys.json
+      - --lose-rate=${WALLET_SIM_LOSE_RATE:-0}
+      - --fail-rate=${WALLET_SIM_FAIL_RATE:-0}
+      - --latency-ms=${WALLET_SIM_LATENCY_MS:-20}
+    ports: ["127.0.0.1:8090:8090"]
+    depends_on: [api]
+    profiles: ["app"]
+
+  realtime:
+    build: { context: ../../realtime }
+    env_file: ../../.demo/stack.env
+    environment:
+      POSTGRES_HOST: postgres
+      REALTIME_DB_USER: lr_realtime
+      SEED_CHAIN_LENGTH: "100000"
+      # Sandbox stack: a local-random chain is created on first boot. Production leaves this
+      # unset and runs the drand ceremony (LuxRt.Release.seed_ceremony/2, doc 07 §6.1).
+      SEED_AUTO_CHAIN: "true"
+      PHX_HOST: localhost
+      PHX_SERVER: "true"
+      PORT: "4000"
+      PLATFORM_INTERNAL_URL: http://api:8000
+      GAME_ORIGINS: http://localhost:3000
+    command: ["sh", "-c", "/app/bin/lux_rt eval 'LuxRt.Release.migrate()' && exec /app/bin/lux_rt start"]
+    ports: ["127.0.0.1:4000:4000"]
+    depends_on: { migrate: { condition: service_completed_successfully } }
+    profiles: ["app"]
+
+  game:
+    build:
+      context: ../..
+      dockerfile: apps/game/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+        NEXT_PUBLIC_RT_URL: ws://localhost:4000/socket
+    ports: ["127.0.0.1:3000:8080"]
+    profiles: ["app"]
+
+  # Operator portal (doc 13): static console + same-origin proxy to the platform API.
+  portal:
+    build: { context: ../.., dockerfile: apps/portal/Dockerfile }
+    environment:
+      PORTAL_API_UPSTREAM: http://api:8000
+    ports: ["127.0.0.1:3002:8080"]
+    depends_on: [api]
+    profiles: ["app"]
+
+  # Platform console (doc 12): static console + same-origin proxy; passkeys need a secure
+  # context, which http://localhost is.
+  admin:
+    build: { context: ../.., dockerfile: apps/admin/Dockerfile }
+    environment:
+      ADMIN_API_UPSTREAM: http://api:8000
+    ports: ["127.0.0.1:3003:8080"]
+    depends_on: [api]
+    profiles: ["app"]
+
+volumes:
+  pgdata:
