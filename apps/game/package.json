@@ -15,7 +15,7 @@
     "phoenix": "1.7.21",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "three": "0.180.0"
+    "three": "0.186.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
